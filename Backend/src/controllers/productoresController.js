@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 export const getProductores = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, codigo, nombre, cuit, activo, created_at
+      SELECT id, codigo, nombre, activo, created_at
       FROM productor
       WHERE activo = true
       ORDER BY nombre ASC
@@ -32,13 +32,13 @@ export const getProductorById = async (req, res) => {
 
 export const createProductor = async (req, res) => {
   try {
-    const { codigo, nombre, cuit } = req.body;
+    const { codigo, nombre } = req.body;
     if (!nombre) {
       return res.status(400).json({ success: false, error: 'El nombre es requerido' });
     }
     const result = await pool.query(
-      'INSERT INTO productor (codigo, nombre, cuit, activo) VALUES ($1, $2, $3, true) RETURNING *',
-      [codigo || null, nombre, cuit || null]
+      'INSERT INTO productor (codigo, nombre, activo) VALUES ($1, $2, true) RETURNING *',
+      [codigo || null, nombre]
     );
     res.status(201).json({ success: true, message: 'Productor creado', data: result.rows[0] });
   } catch (error) {
@@ -49,12 +49,12 @@ export const createProductor = async (req, res) => {
 export const updateProductor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo, nombre, cuit, activo } = req.body;
+    const { codigo, nombre, activo } = req.body;
     const result = await pool.query(
       `UPDATE productor SET codigo = COALESCE($1, codigo), nombre = COALESCE($2, nombre), 
-       cuit = COALESCE($3, cuit), activo = COALESCE($4, activo), updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 RETURNING *`,
-      [codigo, nombre, cuit, activo, id]
+       activo = COALESCE($3, activo), updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4 RETURNING *`,
+      [codigo, nombre, activo, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Productor no encontrado' });

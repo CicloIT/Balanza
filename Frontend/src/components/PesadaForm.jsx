@@ -1,27 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Scale, Info, Wifi, WifiOff, Download, Camera, RefreshCw, Monitor } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
 
 const API_BASE_URL = 'http://localhost:3000';
+const WS_URL = 'ws://localhost:3000';
 
 export default function PesadaForm() {
   const { isDark } = useThemeContext();
-  
+
   const [vehiculos, setVehiculos] = useState([]);
   const [choferes, setChoferes] = useState([]);
   const [productos, setProductos] = useState([]);
   const [productores, setProductores] = useState([]);
+  const [transportes, setTransportes] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
-  
+
+  // Estados de la balanza
+  const [balanzaPeso, setBalanzaPeso] = useState(0);
+  const [balanzaStatus, setBalanzaStatus] = useState('DISCONNECTED');
+  const wsRef = useRef(null);
+
+  // Estados de cámara
+  const [camLoading, setCamLoading] = useState(false);
+  const [camImages, setCamImages] = useState([]);
+  const [camStatus, setCamStatus] = useState(null);
+
   const [formData, setFormData] = useState({
-    vehiculo_id: '',
+    vehiculo_patente: '',
     chofer_id: '',
     producto_id: '',
     productor_id: '',
+    transporte_id: '',
+    balancero: '',
+    peso: '',
+    nro_remito: '',
   });
-  
+
   const [pesadas, setPesadas] = useState([]);
+
+  // WebSocket connection
+  useEffect(() => {
+    const connectWS = () => {
+      console.log('Intentando conectar con servidor de balanza...');
+      const socket = new WebSocket(WS_URL);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        console.log('Conectado al servidor de balanza');
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'STATUS') {
+          setBalanzaStatus(data.status);
+          if (data.currentWeight !== undefined && data.currentWeight !== null) {
+            setBalanzaPeso(data.currentWeight);
+          }
+        } else if (data.type === 'WEIGHT') {
+          setBalanzaPeso(data.weight);
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('Desconectado del servidor de balanza');
+        setBalanzaStatus('DISCONNECTED');
+        // Reintentar conexión en 5 segundos
+        setTimeout(connectWS, 5000);
+      };
+
+      socket.onerror = (error) => {
+        console.error('Error en WebSocket:', error);
+        socket.close();
+      };
+    };
+
+    connectWS();
+
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
 
   // Cargar datos en montaje
   useEffect(() => {
@@ -31,28 +91,55 @@ export default function PesadaForm() {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      const [vRes, cRes, pRes, prRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/vehiculos`),
-        fetch(`${API_BASE_URL}/api/choferes`),
-        fetch(`${API_BASE_URL}/api/productos`),
-        fetch(`${API_BASE_URL}/api/productores`),
-      ]);
+      const endpoints = {
+        vehiculos: `${API_BASE_URL}/api/vehiculos`,
+        choferes: `${API_BASE_URL}/api/choferes`,
+        productos: `${API_BASE_URL}/api/productos`,
+        productores: `${API_BASE_URL}/api/productores`,
+        transportes: `${API_BASE_URL}/api/transportes`,
+        usuarios: `${API_BASE_URL}/api/usuarios`,
+      };
 
-      if (!vRes.ok || !cRes.ok || !pRes.ok || !prRes.ok) {
-        throw new Error('Error al cargar datos');
+      const keys = Object.keys(endpoints);
+      const responses = await Promise.all(
+        Object.values(endpoints).map(url => fetch(url))
+      );
+
+      const failed = [];
+      const dataResults = {};
+
+      for (let i = 0; i < responses.length; i++) {
+        const key = keys[i];
+        const res = responses[i];
+        if (!res.ok) {
+          try {
+            const errData = await res.json();
+            failed.push(`${key} (${errData.error || res.statusText})`);
+          } catch (e) {
+            failed.push(`${key} (${res.statusText})`);
+          }
+        } else {
+          dataResults[key] = await res.json();
+        }
       }
 
-      const [vData, cData, pData, prData] = await Promise.all([
-        vRes.json(),
-        cRes.json(),
-        pRes.json(),
-        prRes.json(),
-      ]);
+      if (failed.length > 0) {
+        throw new Error(`Error al cargar datos maestro: ${failed.join(', ')}`);
+      }
 
-      setVehiculos(vData.data || vData || []);
-      setChoferes(cData.data || cData || []);
-      setProductos(pData.data || pData || []);
-      setProductores(prData.data || prData || []);
+      const vData = dataResults.vehiculos;
+      const cData = dataResults.choferes;
+      const pData = dataResults.productos;
+      const prData = dataResults.productores;
+      const tData = dataResults.transportes;
+      const uData = dataResults.usuarios;
+
+      setVehiculos(vData.data || []);
+      setChoferes(cData.data || []);
+      setProductos(pData.data || []);
+      setProductores(prData.data || []);
+      setTransportes(tData.data || []);
+      setUsuarios(uData.data || []);
     } catch (error) {
       setMessage({ type: 'error', text: 'Error al cargar datos: ' + error.message });
     } finally {
@@ -68,87 +155,82 @@ export default function PesadaForm() {
     });
   };
 
-  const agregarPesada = (tipo) => {
-    if (!formData.vehiculo_id || !formData.chofer_id || !formData.producto_id || !formData.productor_id) {
-      setMessage({ type: 'error', text: 'Por favor selecciona todos los campos' });
-      return;
-    }
-
-    const vehiculo = vehiculos.find(v => v.id == formData.vehiculo_id);
-    const chofer = choferes.find(c => c.id == formData.chofer_id);
-    const producto = productos.find(p => p.id == formData.producto_id);
-    const productor = productores.find(pr => pr.id == formData.productor_id);
-
-    const nuevaPesada = {
-      id: Date.now(),
-      tipo, // 'BRUTO' o 'TARA'
-      vehiculoPatente: vehiculo.patente,
-      choferNombre: chofer.apellido_nombre,
-      productoNombre: producto.nombre,
-      productorNombre: productor.nombre,
+  const capturarPeso = () => {
+    setFormData({
       ...formData,
-    };
-
-    setPesadas([...pesadas, nuevaPesada]);
-    setMessage({ type: 'success', text: `Pesada ${tipo} agregada` });
+      peso: balanzaPeso.toString()
+    });
+    setMessage({ type: 'success', text: `Peso capturado: ${balanzaPeso} kg` });
     setTimeout(() => setMessage(null), 2000);
   };
 
-  const handleEliminar = (id) => {
-    setPesadas(pesadas.filter(p => p.id !== id));
+  const capturarFotos = async (patente) => {
+    try {
+      setCamLoading(true);
+      setCamStatus('capturing');
+      const res = await fetch(`${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}`);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        setCamImages(data.archivos || []);
+        setCamStatus('success');
+      } else {
+        setCamStatus('error');
+      }
+    } catch (e) {
+      console.error(e);
+      setCamStatus('error');
+    } finally {
+      setCamLoading(false);
+    }
   };
 
-  const crearTicket = async () => {
-    if (pesadas.length === 0) {
-      setMessage({ type: 'error', text: 'Debes agregar al menos una pesada' });
+
+  const registrarPesada = async (tipo) => {
+    if (!formData.peso || parseFloat(formData.peso) <= 0) {
+      setMessage({ type: 'error', text: 'Por favor ingresa un peso válido' });
+      return;
+    }
+
+    if (!formData.vehiculo_patente.trim()) {
+      setMessage({ type: 'error', text: 'La patente es obligatoria' });
       return;
     }
 
     try {
       setLoading(true);
       
-      // Crear ticket
-      const ticketRes = await fetch(`${API_BASE_URL}/api/tickets`, {
+      // Disparar captura de fotos asíncronamente mientras se procesa la pesada
+      capturarFotos(formData.vehiculo_patente);
+
+      const chofer = choferes.find(c => c.apellido_nombre === formData.chofer_id || c.id == formData.chofer_id);
+      const producto = productos.find(p => p.nombre === formData.producto_id || p.id == formData.producto_id);
+      const productor = productores.find(p => p.nombre === formData.productor_id || p.id == formData.productor_id);
+      const transporte = transportes.find(t => t.nombre === formData.transporte_id || t.id == formData.transporte_id);
+
+      const payload = {
+        vehiculo_patente: formData.vehiculo_patente,
+        tipo,
+        peso: parseFloat(formData.peso),
+        chofer_id: chofer?.id || null,
+        producto_id: producto?.id || null,
+        productor_id: productor?.id || null,
+        transporte_id: transporte?.id || null,
+        balancero: formData.balancero,
+        nro_remito: formData.nro_remito
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/pesadas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehiculo_id: formData.vehiculo_id,
-          chofer_id: formData.chofer_id,
-          producto_id: formData.producto_id,
-          productor_id: formData.productor_id,
-          estado: 'ACTIVO',
-        }),
+        body: JSON.stringify(payload)
       });
 
-      if (!ticketRes.ok) {
-        throw new Error('Error al crear ticket');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al registrar pesada');
 
-      const ticket = await ticketRes.json();
+      setMessage({ type: 'success', text: `Pesada ${tipo} registrada exitosamente` });
+      setFormData({ ...formData, peso: '', nro_remito: '', balancero: '' });
 
-      // Crear pesadas
-      for (const pesada of pesadas) {
-        await fetch(`${API_BASE_URL}/api/pesadas`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ticket_id: ticket.id,
-            tipo: pesada.tipo,
-            kilos: pesada.kilos || 0,
-          }),
-        });
-      }
-
-      setMessage({ type: 'success', text: 'Ticket creado exitosamente' });
-      
-      // Limpiar
-      setFormData({
-        vehiculo_id: '',
-        chofer_id: '',
-        producto_id: '',
-        productor_id: '',
-      });
-      setPesadas([]);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -159,201 +241,294 @@ export default function PesadaForm() {
   return (
     <div className="space-y-6">
       {message && (
-        <div className={`rounded-lg p-4 ${
-          message.type === 'success'
-            ? isDark ? 'bg-green-500/30 text-green-400' : 'bg-green-100 text-green-700'
-            : isDark ? 'bg-red-500/30 text-red-400' : 'bg-red-100 text-red-700'
-        }`}>
+        <div className={`rounded-lg p-4 shadow-md border animate-fadeIn ${message.type === 'success'
+          ? isDark ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-green-100 border-green-200 text-green-700'
+          : isDark ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-red-100 border-red-200 text-red-700'
+          }`}>
           {message.text}
         </div>
       )}
 
-      <div className={`backdrop-blur-xl rounded-2xl shadow-2xl p-8 transition-colors duration-300 ${
-        isDark
-          ? 'bg-white/10 border border-white/20'
-          : 'bg-white/70 border border-slate-200'
-      }`}>
-        <h3 className={`text-2xl font-bold mb-6 transition-colors duration-300 ${isDark ? 'text-white' : 'text-slate-900'}`}>Nueva Pesada</h3>
+      <div className={`backdrop-blur-xl rounded-2xl shadow-2xl p-8 transition-all duration-300 ${isDark
+        ? 'bg-slate-800/50 border border-slate-700'
+        : 'bg-white/80 border border-slate-200'
+        }`}>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-500 rounded-xl shadow-lg shadow-blue-500/20">
+              <Scale className="text-white" size={24} />
+            </div>
+            <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Operación de Pesaje</h3>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className={`flex items-center gap-3 px-4 py-2 rounded-full border ${
+            balanzaStatus === 'CONNECTED'
+              ? isDark ? 'bg-green-500/10 border-green-500/50 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
+              : isDark ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            {balanzaStatus === 'CONNECTED' ? <Wifi size={18} /> : <WifiOff size={18} />}
+            <span className="text-sm font-bold">BALANZA: {balanzaStatus === 'CONNECTED' ? 'CONECTADA' : 'DESCONECTADA'}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Fila 1 */}
           <div>
-            <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-black' : 'text-slate-700'}`}>Vehículo</label>
-            <select
-              name="vehiculo_id"
-              value={formData.vehiculo_id}
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Balancero</label>
+            <input
+              type="text"
+              name="balancero"
+              value={formData.balancero}
               onChange={handleInputChange}
-              disabled={loading}
-              className={`w-full px-4 py-2 rounded-lg font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
-                isDark
-                  ? 'bg-white/10 border border-white/20 text-black'
-                  : 'bg-white border border-slate-300 text-slate-900'
-              }`}
-            >
-              <option value="">Seleccionar vehículo</option>
-              {vehiculos.map(v => (
-                <option key={v.id} value={v.id}>{v.patente} - {v.tipo_vehiculo}</option>
-              ))}
-            </select>
+              placeholder="Nombre del balancero..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
           </div>
 
           <div>
-            <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-black' : 'text-slate-700'}`}>Chofer</label>
-            <select
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Vehículo (Patente) *</label>
+            <input
+              type="text"
+              name="vehiculo_patente"
+              list="list-vehiculos"
+              value={formData.vehiculo_patente}
+              onChange={handleInputChange}
+              placeholder="Escribe patente..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
+            <datalist id="list-vehiculos">
+              {vehiculos.map(v => <option key={v.id} value={v.patente}>{v.tipo_vehiculo}</option>)}
+            </datalist>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Chofer</label>
+            <input
+              type="text"
               name="chofer_id"
+              list="list-choferes"
               value={formData.chofer_id}
               onChange={handleInputChange}
-              disabled={loading}
-              className={`w-full px-4 py-2 rounded-lg font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
-                isDark
-                  ? 'bg-white/10 border border-white/20 text-black'
-                  : 'bg-white border border-slate-300 text-slate-900'
-              }`}
-            >
-              <option value="">Seleccionar chofer</option>
-              {choferes.map(c => (
-                <option key={c.id} value={c.id}>{c.apellido_nombre}</option>
-              ))}
-            </select>
+              placeholder="Escribe chofer..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
+            <datalist id="list-choferes">
+              {choferes.map(c => <option key={c.id} value={c.apellido_nombre} />)}
+            </datalist>
           </div>
 
           <div>
-            <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-black' : 'text-slate-700'}`}>Producto</label>
-            <select
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Transporte</label>
+            <input
+              type="text"
+              name="transporte_id"
+              list="list-transportes"
+              value={formData.transporte_id}
+              onChange={handleInputChange}
+              placeholder="Empresa..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
+            <datalist id="list-transportes">
+              {transportes.map(t => <option key={t.id} value={t.nombre} />)}
+            </datalist>
+          </div>
+
+          {/* Fila 2 */}
+          <div>
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Producto</label>
+            <input
+              type="text"
               name="producto_id"
+              list="list-productos"
               value={formData.producto_id}
               onChange={handleInputChange}
-              disabled={loading}
-              className={`w-full px-4 py-2 rounded-lg font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
-                isDark
-                  ? 'bg-white/10 border border-white/20 text-black'
-                  : 'bg-white border border-slate-300 text-slate-900'
-              }`}
-            >
-              <option value="">Seleccionar producto</option>
-              {productos.map(p => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
-              ))}
-            </select>
+              placeholder="Tipo de carga..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
+            <datalist id="list-productos">
+              {productos.map(p => <option key={p.id} value={p.nombre} />)}
+            </datalist>
           </div>
 
           <div>
-            <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-black' : 'text-slate-700'}`}>Productor</label>
-            <select
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Productor</label>
+            <input
+              type="text"
               name="productor_id"
+              list="list-productores"
               value={formData.productor_id}
               onChange={handleInputChange}
-              disabled={loading}
-              className={`w-full px-4 py-2 rounded-lg font-medium focus:ring-2 focus:ring-blue-500 outline-none ${
-                isDark
-                  ? 'bg-white/10 border border-white/20 text-black'
-                  : 'bg-white border border-slate-300 text-slate-900'
-              }`}
-            >
-              <option value="">Seleccionar productor</option>
-              {productores.map(pr => (
-                <option key={pr.id} value={pr.id}>{pr.nombre}</option>
-              ))}
-            </select>
+              placeholder="Productor..."
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
+            <datalist id="list-productores">
+              {productores.map(p => <option key={p.id} value={p.nombre} />)}
+            </datalist>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nro Remito</label>
+            <input
+              type="text"
+              name="nro_remito"
+              value={formData.nro_remito}
+              onChange={handleInputChange}
+              placeholder="0001-00000123"
+              className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+            />
           </div>
         </div>
 
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => agregarPesada('BRUTO')}
-            disabled={loading}
-            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-              isDark
-                ? 'bg-green-500/30 hover:bg-green-500/50 text-green-400 disabled:opacity-50'
-                : 'bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-50'
-            }`}
-          >
-            + Agregar BRUTO
-          </button>
-          <button
-            onClick={() => agregarPesada('TARA')}
-            disabled={loading}
-            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-              isDark
-                ? 'bg-orange-500/30 hover:bg-orange-500/50 text-orange-400 disabled:opacity-50'
-                : 'bg-orange-100 hover:bg-orange-200 text-orange-700 disabled:opacity-50'
-            }`}
-          >
-            + Agregar TARA
-          </button>
-        </div>
-
-        <button
-          onClick={crearTicket}
-          disabled={loading || pesadas.length === 0}
-          className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${
-            isDark
-              ? 'bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50'
-              : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50'
-          }`}
-        >
-          {loading ? 'Guardando...' : 'Crear Ticket'}
-        </button>
-      </div>
-
-      {pesadas.length > 0 && (
-        <div className={`backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden ${
-          isDark
-            ? 'bg-white/10 border border-white/20'
-            : 'bg-white/70 border border-slate-200'
+        {/* Captura de Peso */}
+        <div className={`p-8 rounded-3xl mb-8 flex flex-col lg:flex-row items-center gap-8 ${
+          isDark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'
         }`}>
-          <div className="h-1 bg-linear-to-r from-blue-500 via-cyan-500 to-blue-500"></div>
-          <div className="p-6">
-            <h3 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Pesadas ({pesadas.length})</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className={`${
-                    isDark
-                      ? 'border-b border-white/10 bg-white/5'
-                      : 'border-b border-slate-200 bg-slate-50'
-                  }`}>
-                    <th className={`px-4 py-3 text-left font-bold ${isDark ? 'text-black' : 'text-slate-700'}`}>Tipo</th>
-                    <th className={`px-4 py-3 text-left font-bold ${isDark ? 'text-black' : 'text-slate-700'}`}>Vehículo</th>
-                    <th className={`px-4 py-3 text-left font-bold ${isDark ? 'text-black' : 'text-slate-700'}`}>Chofer</th>
-                    <th className={`px-4 py-3 text-left font-bold ${isDark ? 'text-black' : 'text-slate-700'}`}>Producto</th>
-                    <th className={`px-4 py-3 text-left font-bold ${isDark ? 'text-black' : 'text-slate-700'}`}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pesadas.map((pesada) => (
-                    <tr key={pesada.id} className={`${
-                      isDark
-                        ? 'border-b border-white/5 hover:bg-white/10'
-                        : 'border-b border-slate-100 hover:bg-slate-50'
-                    }`}>
-                      <td className={`px-4 py-3 font-bold ${
-                        pesada.tipo === 'BRUTO'
-                          ? 'text-green-400'
-                          : 'text-orange-400'
-                      }`}>{pesada.tipo}</td>
-                      <td className={`px-4 py-3 ${isDark ? 'text-black' : 'text-slate-800'}`}>{pesada.vehiculoPatente}</td>
-                      <td className={`px-4 py-3 ${isDark ? 'text-black' : 'text-slate-800'}`}>{pesada.choferNombre}</td>
-                      <td className={`px-4 py-3 ${isDark ? 'text-black' : 'text-slate-800'}`}>{pesada.productoNombre}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleEliminar(pesada.id)}
-                          className={`p-2 rounded-lg transition-all ${
-                            isDark
-                              ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          
+          {/* Display Balanza en Tiempo Real */}
+          <div className="flex-1 w-full space-y-3">
+            <div className="flex items-center justify-between">
+              <label className={`text-sm font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>LITERAL DE BALANZA (Real-time)</label>
+              <div className={`flex items-center gap-2 text-xs font-mono ${balanzaStatus === 'CONNECTED' ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`w-2 h-2 rounded-full ${balanzaStatus === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                {balanzaStatus === 'CONNECTED' ? 'LIVE' : 'OFFLINE'}
+              </div>
+            </div>
+            <div className={`relative group px-8 py-6 rounded-2xl flex items-center justify-center min-h-[120px] transition-all ${
+              isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+            }`}>
+              <span className={`text-6xl md:text-7xl font-mono font-black ${
+                balanzaStatus === 'CONNECTED' 
+                ? isDark ? 'text-blue-400' : 'text-blue-600'
+                : 'text-slate-400 opacity-50'
+              }`}>
+                {balanzaPeso.toLocaleString()}
+                <span className="text-2xl ml-2">kg</span>
+              </span>
+              
+              {balanzaStatus === 'CONNECTED' && (
+                <button 
+                  onClick={capturarPeso}
+                  title="Capturar este peso"
+                  className="absolute -right-3 -top-3 p-4 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 transition-all hover:scale-110 active:scale-95 group-hover:rotate-6"
+                >
+                  <Download size={24} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="hidden lg:flex flex-col items-center">
+             <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
+             <div className="my-2 text-blue-500/50 italic text-xs">Capturar</div>
+             <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
+          </div>
+
+          {/* Input de Registro */}
+          <div className="flex-1 w-full space-y-3">
+            <label className={`block text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>PESO PARA REGISTRO (kg) *</label>
+            <input
+              type="number"
+              name="peso"
+              value={formData.peso}
+              onChange={handleInputChange}
+              placeholder="0"
+              className={`w-full px-8 py-6 text-5xl font-mono font-bold rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/30 transition-all ${
+                isDark ? 'bg-slate-950 border-slate-700 text-blue-400' : 'bg-white border-slate-300 text-blue-600'
+              }`}
+            />
+            <div className="flex gap-4">
+              <button
+                onClick={() => registrarPesada('BRUTO')}
+                disabled={loading}
+                className="flex-1 px-8 py-6 bg-green-600 hover:bg-green-700 text-white font-bold text-xl rounded-2xl shadow-lg shadow-green-600/20 transition-all active:scale-95 disabled:opacity-50"
+              >
+                BRUTO
+              </button>
+              <button
+                onClick={() => registrarPesada('TARA')}
+                disabled={loading}
+                className="flex-1 px-8 py-6 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xl rounded-2xl shadow-lg shadow-orange-600/20 transition-all active:scale-95 disabled:opacity-50"
+              >
+                TARA
+              </button>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Registro Visual (Cámaras) */}
+        <div className={`p-8 rounded-3xl mb-8 border transition-all ${
+          isDark ? 'bg-slate-900/40 border-slate-700' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Camera className="text-blue-500" size={20} />
+              <h4 className={`text-lg font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Registro Visual Automático</h4>
+            </div>
+
+            {camStatus === 'capturing' && (
+              <div className="flex items-center gap-2 text-blue-500 animate-pulse">
+                <RefreshCw className="animate-spin" size={16} />
+                <span className="text-sm font-bold">CAPTURANDO...</span>
+              </div>
+            )}
+            {camStatus === 'success' && (
+              <div className="text-green-500 text-sm font-bold">✅ CAPTURADO</div>
+            )}
+            {camStatus === 'error' && (
+              <div className="text-red-500 text-sm font-bold">❌ ERROR NVR</div>
+            )}
+
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2].map((ch, i) => (
+              <div key={ch} className={`aspect-video rounded-2xl overflow-hidden relative border ${
+                isDark ? 'bg-slate-950 border-white/5' : 'bg-white border-slate-300'
+              }`}>
+                {camImages[i] ? (
+                  <img 
+                    src={`${API_BASE_URL}/capturas/${camImages[i]}`} 
+                    alt={`Cámara ${ch}`} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20">
+                    <Monitor size={32} />
+                    <span className="text-[8px] font-black mt-2">NO IMAGE</span>
+                  </div>
+                )}
+                <div className="absolute top-3 left-3 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[8px] font-bold text-white border border-white/10 uppercase">
+                  CAM 0{ch}
+                </div>
+              </div>
+            ))}
+            
+            {/* Info help */}
+            <div className="md:col-span-2 flex items-center gap-4 px-6 rounded-2xl border border-dashed border-slate-500/20">
+              <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
+                <Info size={20} />
+              </div>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Las capturas se guardan automáticamente en el servidor y quedan vinculadas al registro del pesaje actual.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center gap-2 text-sm text-slate-500 italic">
+          <Info size={16} />
+          El panel izquierdo muestra el peso en tiempo real de la balanza. Usa el botón azul para capturarlo y registrarlo.
+        </div>
+      </div>
     </div>
   );
 }
+

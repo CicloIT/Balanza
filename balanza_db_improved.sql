@@ -86,57 +86,19 @@ CREATE TABLE localidad (
 
 CREATE INDEX idx_localidad_provincia ON localidad(provincia_id);
 
-
-/* =============================
-   BALANZA
-   ============================= */
-
-CREATE TABLE balanza (
-    id SERIAL PRIMARY KEY,
-    codigo VARCHAR(50) UNIQUE NOT NULL,
-    nombre VARCHAR(150) NOT NULL,
-    direccion VARCHAR(200),
-    localidad_id INTEGER NOT NULL REFERENCES localidad(id) ON DELETE RESTRICT,
-    activa BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_balanza_localidad ON balanza(localidad_id);
-CREATE INDEX idx_balanza_activa ON balanza(activa);
-
-
 /* =============================
    USUARIOS Y PERMISOS
    ============================= */
-
 CREATE TABLE usuario (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    nombre_completo VARCHAR(150) NOT NULL,
-    email VARCHAR(100),
+    password_hash TEXT NOT NULL,        
     rol rol_enum NOT NULL DEFAULT 'empleado',
+    localidad_id INTEGER REFERENCES localidad(id),
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_usuario_activo ON usuario(activo);
-CREATE INDEX idx_usuario_rol ON usuario(rol);
-
-CREATE TABLE usuario_balanza (
-    id SERIAL PRIMARY KEY,
-    usuario_id INTEGER NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
-    balanza_id INTEGER NOT NULL REFERENCES balanza(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_usuario_balanza UNIQUE(usuario_id, balanza_id)
-);
-
-CREATE INDEX idx_usuario_balanza_usuario ON usuario_balanza(usuario_id);
-CREATE INDEX idx_usuario_balanza_balanza ON usuario_balanza(balanza_id);
-
-
 /* =============================
    ENTIDADES OPERATIVAS (CATÁLOGOS)
    ============================= */
@@ -160,8 +122,7 @@ CREATE INDEX idx_chofer_activo ON chofer(activo);
 CREATE TABLE productor (
     id SERIAL PRIMARY KEY,
     codigo VARCHAR(50) UNIQUE,
-    nombre VARCHAR(150) NOT NULL,
-    cuit VARCHAR(20),
+    nombre VARCHAR(150) NOT NULL,    
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -173,8 +134,7 @@ CREATE INDEX idx_productor_activo ON productor(activo);
 CREATE TABLE producto (
     id SERIAL PRIMARY KEY,
     codigo VARCHAR(50) UNIQUE,
-    nombre VARCHAR(150) NOT NULL,
-    descripcion TEXT,
+    nombre VARCHAR(150) NOT NULL,    
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -188,9 +148,7 @@ CREATE TABLE transporte (
     id SERIAL PRIMARY KEY,
     codigo VARCHAR(50) UNIQUE,
     nombre VARCHAR(150) NOT NULL,
-    cuit VARCHAR(20) UNIQUE NOT NULL,
-    contacto VARCHAR(150),
-    telefono VARCHAR(20),
+    cuit VARCHAR(20) UNIQUE NOT NULL,    
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -207,8 +165,8 @@ CREATE INDEX idx_transporte_activo ON transporte(activo);
 CREATE TABLE vehiculo (
     id SERIAL PRIMARY KEY,
     patente VARCHAR(15) UNIQUE NOT NULL,
-    tipo_vehiculo tipo_vehiculo_enum NOT NULL,
-    transporte_id INTEGER REFERENCES transporte(id) ON DELETE SET NULL,
+    patente_acoplado VARCHAR(15),
+    tipo_vehiculo tipo_vehiculo_enum NOT NULL,    
     activo BOOLEAN DEFAULT TRUE,
     observaciones TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -227,23 +185,9 @@ CREATE INDEX idx_vehiculo_activo ON vehiculo(activo);
 
 CREATE TABLE ticket (
     id SERIAL PRIMARY KEY,
-    numero_ticket BIGSERIAL UNIQUE NOT NULL,
-    
-    fecha_hora_entrada TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fecha_hora_salida TIMESTAMP,
-    
-    balanza_id INTEGER NOT NULL REFERENCES balanza(id) ON DELETE RESTRICT,
-    
-    chofer_id INTEGER NOT NULL REFERENCES chofer(id),
-    productor_id INTEGER NOT NULL REFERENCES productor(id),
-    transporte_id INTEGER NOT NULL REFERENCES transporte(id),
-    producto_id INTEGER NOT NULL REFERENCES producto(id),
-    vehiculo_id INTEGER NOT NULL REFERENCES vehiculo(id),
-    
-    operario_id INTEGER NOT NULL REFERENCES usuario(id),
-    
+    numero_ticket BIGSERIAL UNIQUE NOT NULL,           
+    pesada_id INTEGER REFERENCES pesada(id),        
     estado estado_ticket_enum DEFAULT 'ABIERTO',
-    
     observaciones TEXT,
     nro_remito VARCHAR(50),
     
@@ -251,281 +195,86 @@ CREATE TABLE ticket (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ticket_balanza ON ticket(balanza_id);
-CREATE INDEX idx_ticket_fecha ON ticket(fecha_hora_entrada);
-CREATE INDEX idx_ticket_estado ON ticket(estado);
-CREATE INDEX idx_ticket_operario ON ticket(operario_id);
-CREATE INDEX idx_ticket_vehiculo ON ticket(vehiculo_id);
-CREATE INDEX idx_ticket_productor ON ticket(productor_id);
-CREATE INDEX idx_ticket_transporte ON ticket(transporte_id);
 
--- Índice compuesto para reportes frecuentes
-CREATE INDEX idx_ticket_balanza_fecha ON ticket(balanza_id, fecha_hora_entrada DESC);
-CREATE INDEX idx_ticket_estado_fecha ON ticket(estado, fecha_hora_entrada DESC);
+CREATE INDEX idx_ticket_estado ON ticket(estado);
+
+
 
 
 /* =============================
    PESADAS (DETALLE)
    ============================= */
 
+CREATE TABLE operacion_pesaje (
+    id SERIAL PRIMARY KEY,
+    vehiculo_patente VARCHAR(15) NOT NULL REFERENCES vehiculo(patente),
+    abierta BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX unica_operacion_abierta_por_camion
+ON operacion_pesaje (vehiculo_patente)
+WHERE abierta = true;
+
 CREATE TABLE pesada (
     id SERIAL PRIMARY KEY,
-    ticket_id INTEGER NOT NULL REFERENCES ticket(id) ON DELETE CASCADE,
+    operacion_id INTEGER NOT NULL REFERENCES operacion_pesaje(id) ON DELETE CASCADE,
     tipo tipo_pesada_enum NOT NULL,
     peso NUMERIC(12,2) NOT NULL,
+    chofer_id INTEGER REFERENCES chofer(id),
+    productor_id INTEGER REFERENCES productor(id),
+    neto NUMERIC(12,2),
+    transporte_id INTEGER REFERENCES transporte(id),
+    producto_id INTEGER REFERENCES producto(id),
+    vehiculo_patente VARCHAR(15) REFERENCES vehiculo(patente),
+    balancero VARCHAR(100),
+    nro_remito VARCHAR(50),
     fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    operario_id INTEGER REFERENCES usuario(id),
-    observaciones TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_peso_positivo CHECK (peso > 0)
 );
 
-CREATE INDEX idx_pesada_ticket ON pesada(ticket_id);
-CREATE INDEX idx_pesada_tipo ON pesada(tipo);
-CREATE INDEX idx_pesada_fecha ON pesada(fecha_hora);
-
--- Índice para obtener rápidamente bruto/tara de un ticket
-CREATE INDEX idx_pesada_ticket_tipo ON pesada(ticket_id, tipo);
+ALTER TABLE pesada
+ADD CONSTRAINT unica_pesada_por_tipo UNIQUE (operacion_id, tipo);
 
 
-/* =============================
-   FUNCIONES Y TRIGGERS
-   ============================= */
-
--- Validar que cada ticket tenga al menos un BRUTO y un TARA
-CREATE OR REPLACE FUNCTION fn_validar_pesadas()
+CREATE OR REPLACE FUNCTION calcular_neto()
 RETURNS TRIGGER AS $$
+DECLARE
+    peso_bruto NUMERIC(12,2);
+    peso_tara  NUMERIC(12,2);
 BEGIN
-    -- Si el ticket se marca como CERRADO, validar que tenga pesadas
-    IF NEW.estado = 'CERRADO' THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM pesada 
-            WHERE ticket_id = NEW.id AND tipo = 'BRUTO'
-        ) OR NOT EXISTS (
-            SELECT 1 FROM pesada 
-            WHERE ticket_id = NEW.id AND tipo = 'TARA'
-        ) THEN
-            RAISE EXCEPTION 'El ticket debe tener al menos un peso BRUTO y un TARA para cerrar';
-        END IF;
+    SELECT peso INTO peso_bruto
+    FROM pesada
+    WHERE operacion_id = NEW.operacion_id
+      AND tipo = 'BRUTO'
+    LIMIT 1;
+
+    SELECT peso INTO peso_tara
+    FROM pesada
+    WHERE operacion_id = NEW.operacion_id
+      AND tipo = 'TARA'
+    LIMIT 1;
+
+    IF peso_bruto IS NOT NULL AND peso_tara IS NOT NULL THEN
+        UPDATE pesada
+        SET neto = peso_bruto - peso_tara
+        WHERE operacion_id = NEW.operacion_id;
+
+        UPDATE operacion_pesaje
+        SET abierta = FALSE
+        WHERE id = NEW.operacion_id;
     END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_validar_pesadas
-BEFORE UPDATE ON ticket
-FOR EACH ROW
-WHEN (OLD.estado IS DISTINCT FROM NEW.estado)
-EXECUTE FUNCTION fn_validar_pesadas();
-
-
--- Actualizar fecha de salida automáticamente si se registra la última pesada
-CREATE OR REPLACE FUNCTION fn_actualizar_ticket_fecha_salida()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Actualizar la fecha_hora_salida del ticket cuando se registra el TARA
-    IF NEW.tipo = 'TARA' THEN
-        UPDATE ticket 
-        SET fecha_hora_salida = NEW.fecha_hora,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = NEW.ticket_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_actualizar_fecha_salida
+CREATE TRIGGER trg_calcular_neto
 AFTER INSERT ON pesada
 FOR EACH ROW
-EXECUTE FUNCTION fn_actualizar_ticket_fecha_salida();
+EXECUTE FUNCTION calcular_neto();
 
-
-/* =============================
-   VISTAS DE CONSULTA
-   ============================= */
-
--- Vista principal: Calcula pesos brutos, taras y netos
-CREATE VIEW v_ticket_pesos AS
-SELECT
-    t.id,
-    t.numero_ticket,
-    t.fecha_hora_entrada,
-    t.fecha_hora_salida,
-    t.estado,
-    v.patente,
-    v.tipo_vehiculo,
-    tp.nombre AS transporte_nombre,
-    c.apellido_nombre AS chofer_nombre,
-    p.nombre AS producto_nombre,
-    pr.nombre AS productor_nombre,
-    b.nombre AS balanza_nombre,
-    COALESCE(SUM(CASE WHEN pe.tipo = 'BRUTO' THEN pe.peso ELSE 0 END), 0) AS peso_bruto,
-    COALESCE(SUM(CASE WHEN pe.tipo = 'TARA' THEN pe.peso ELSE 0 END), 0) AS peso_tara,
-    COALESCE(
-        SUM(CASE WHEN pe.tipo = 'BRUTO' THEN pe.peso ELSE 0 END) -
-        SUM(CASE WHEN pe.tipo = 'TARA' THEN pe.peso ELSE 0 END),
-        0
-    ) AS peso_neto,
-    EXTRACT(EPOCH FROM (t.fecha_hora_salida - t.fecha_hora_entrada))/3600 AS horas_permanencia
-FROM ticket t
-LEFT JOIN pesada pe ON pe.ticket_id = t.id
-LEFT JOIN vehiculo v ON t.vehiculo_id = v.id
-LEFT JOIN transporte tp ON t.transporte_id = tp.id
-LEFT JOIN chofer c ON t.chofer_id = c.id
-LEFT JOIN producto p ON t.producto_id = p.id
-LEFT JOIN productor pr ON t.productor_id = pr.id
-LEFT JOIN balanza b ON t.balanza_id = b.id
-GROUP BY t.id, v.id, tp.id, c.id, p.id, pr.id, b.id;
-
-
--- Vista detallada con información completa para reportes
-CREATE VIEW v_ticket_detalle AS
-SELECT
-    tp.id,
-    tp.numero_ticket,
-    tp.fecha_hora_entrada,
-    tp.fecha_hora_salida,
-    tp.estado,
-    tp.patente,
-    tp.tipo_vehiculo,
-    tp.transporte_nombre,
-    tp.chofer_nombre,
-    tp.producto_nombre,
-    tp.productor_nombre,
-    tp.balanza_nombre,
-    tp.peso_bruto,
-    tp.peso_tara,
-    tp.peso_neto,
-    tp.horas_permanencia,
-    t.nro_remito,
-    t.observaciones,
-    u.nombre_completo AS operario_nombre,
-    t.created_at
-FROM v_ticket_pesos tp
-JOIN ticket t ON tp.id = t.id
-LEFT JOIN usuario u ON t.operario_id = u.id;
-
-
--- Vista para pesadas agrupadas por ticket (cálculo alternativo)
-CREATE VIEW v_pesadas_agrupadas AS
-SELECT
-    ticket_id,
-    tipo,
-    COUNT(*) as cantidad_pesadas,
-    MIN(peso) as peso_minimo,
-    MAX(peso) as peso_maximo,
-    AVG(peso)::NUMERIC(12,2) as peso_promedio,
-    SUM(peso)::NUMERIC(12,2) as peso_total,
-    MIN(fecha_hora) as fecha_primera,
-    MAX(fecha_hora) as fecha_ultima
-FROM pesada
-GROUP BY ticket_id, tipo;
-
-
-/* =============================
-   TABLAS DE AUDITORÍA (OPCIONAL)
-   ============================= */
-
-CREATE TABLE auditoria_cambios (
-    id SERIAL PRIMARY KEY,
-    tabla VARCHAR(100) NOT NULL,
-    registro_id INTEGER NOT NULL,
-    operacion VARCHAR(10) NOT NULL, -- INSERT, UPDATE, DELETE
-    datos_antes JSONB,
-    datos_despues JSONB,
-    usuario_id INTEGER REFERENCES usuario(id),
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_auditoria_tabla ON auditoria_cambios(tabla);
-CREATE INDEX idx_auditoria_registro ON auditoria_cambios(tabla, registro_id);
-CREATE INDEX idx_auditoria_fecha ON auditoria_cambios(fecha);
-
-
-/* =============================
-   DATOS DE EJEMPLO (COMENTADO)
-   ============================= */
-
-/*
--- Provincias
-INSERT INTO provincia (nombre) VALUES 
-('Buenos Aires'),
-('Córdoba'),
-('Santiago del Estero');
-
--- Localidades
-INSERT INTO localidad (nombre, provincia_id) VALUES 
-('La Plata', 1),
-('Córdoba Capital', 2),
-('Santiago del Estero Capital', 3);
-
--- Balanza
-INSERT INTO balanza (codigo, nombre, direccion, localidad_id) VALUES 
-('BAL-001', 'Balanza Principal', 'Calle 1 y 2', 1);
-
--- Usuarios
-INSERT INTO usuario (username, password_hash, nombre_completo, rol) VALUES 
-('admin', 'hash_password', 'Administrador Sistema', 'admin'),
-('operario1', 'hash_password', 'Juan Pérez', 'empleado');
-
--- Usuarios por balanza
-INSERT INTO usuario_balanza (usuario_id, balanza_id) VALUES 
-(1, 1),
-(2, 1);
-
--- Productores
-INSERT INTO productor (codigo, nombre, cuit) VALUES 
-('PROD-001', 'Productor A', '20123456789');
-
--- Productos
-INSERT INTO producto (codigo, nombre, descripcion) VALUES 
-('PROD-001', 'Soja', 'Grano de soja'),
-('PROD-002', 'Maíz', 'Grano de maíz');
-
--- Transportes (Empresas)
-INSERT INTO transporte (codigo, nombre, cuit) VALUES 
-('TRANS-001', 'Empresa de Transporte A', '30987654321');
-
--- Choferes
-INSERT INTO chofer (codigo, apellido_nombre, nro_documento) VALUES 
-('CHO-001', 'García Juan', '12345678');
-
--- Vehículos
-INSERT INTO vehiculo (patente, tipo_vehiculo, transporte_id) VALUES 
-('ABC123', 'CHASIS', 1);
-*/
-
-
-/* ============================================================
-   MEJORAS RESPECTO A LA VERSIÓN ANTERIOR:
-   
-   1. AUDITORÍA:
-      - Campos created_at y updated_at en tablas principales
-      - Tabla auditoria_cambios para registro completo
-   
-   2. INTEGRIDAD:
-      - Constraints más robustos (ON DELETE RESTRICT en catálogos)
-      - Soft delete con flag 'activo'
-      - Índices compuestos para consultas frecuentes
-   
-   3. CLARIDAD:
-      - Relación explícita vehiculo -> transporte
-      - Comentario aclarando que transporte es EMPRESA
-      - nro_remito en ticket (para datos adicionales del frontend)
-   
-   4. FUNCIONALIDAD:
-      - Triggers para validación automática
-      - Actualización automática de fecha_salida al registrar TARA
-      - Función para validar pesadas completas
-   
-   5. REPORTING:
-      - Vista detallada con información completa
-      - Vista de pesadas agrupadas para análisis
-      - Campos calculados útiles (horas_permanencia, totales)
-   
-   6. PERFORMANCE:
-      - Índices en campos de búsqueda frecuente
-      - Índices compuestos para filtros combinados
-      - Índices en campos de estado y fecha
-   
-   ============================================================ */
+CREATE INDEX idx_pesada_fecha ON pesada (fecha_hora);
+CREATE INDEX idx_operacion_fecha ON operacion_pesaje (created_at);
+CREATE INDEX idx_operacion_patente ON operacion_pesaje (vehiculo_patente);

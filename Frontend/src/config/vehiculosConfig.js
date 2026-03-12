@@ -4,12 +4,12 @@ export const vehiculosConfig = {
   singular: 'vehículo',
   plural: 'vehículos',
   endpoint: '/api/vehiculos',
-  columnasKeys: ['patente', 'tipo_vehiculo', 'transporte_nombre', 'activo'],
-  columnasLabels: ['Patente', 'Tipo', 'Transporte', 'Activo'],
+  columnasKeys: ['patente', 'patente_acoplado', 'tipo_vehiculo', 'activo'],
+  columnasLabels: ['Patente', 'Acoplado', 'Tipo', 'Activo'],
   campos: [
     { name: 'patente', label: 'Patente', type: 'text', placeholder: 'ABC-123' },
+    { name: 'patente_acoplado', label: 'Patente Acoplado', type: 'text', placeholder: 'XYZ-789' },
     { name: 'tipo_vehiculo', label: 'Tipo de Vehículo', type: 'text', placeholder: 'CHASIS' },
-    { name: 'transporte_id', label: 'Empresa de Transporte (ID)', type: 'number', placeholder: '1' },
     { name: 'observaciones', label: 'Observaciones', type: 'text', placeholder: 'Notas opcionales' },
   ],
 };

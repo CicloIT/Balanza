@@ -3,10 +3,11 @@ import pool from '../config/database.js';
 export const getUsuarios = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, username, nombre_completo, email, rol, activo, created_at
-      FROM usuario
-      WHERE activo = true
-      ORDER BY nombre_completo ASC
+      SELECT u.id, u.username, u.rol, u.localidad_id, l.nombre as localidad_nombre, u.activo, u.created_at
+      FROM usuario u
+      LEFT JOIN localidad l ON u.localidad_id = l.id
+      WHERE u.activo = true
+      ORDER BY u.username ASC
     `);
     res.json({
       success: true,
@@ -21,9 +22,10 @@ export const getUsuarios = async (req, res) => {
 export const getUsuarioById = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, username, nombre_completo, email, rol, activo, created_at
-      FROM usuario
-      WHERE id = $1
+      SELECT u.*, l.nombre as localidad_nombre
+      FROM usuario u
+      LEFT JOIN localidad l ON u.localidad_id = l.id
+      WHERE u.id = $1
     `, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
@@ -36,13 +38,13 @@ export const getUsuarioById = async (req, res) => {
 
 export const createUsuario = async (req, res) => {
   try {
-    const { username, password_hash, nombre_completo, email, rol } = req.body;
-    if (!username || !password_hash || !nombre_completo) {
-      return res.status(400).json({ success: false, error: 'Username, password y nombre son requeridos' });
+    const { username, password_hash, rol, localidad_id } = req.body;
+    if (!username || !password_hash) {
+      return res.status(400).json({ success: false, error: 'Username y password son requeridos' });
     }
     const result = await pool.query(
-      'INSERT INTO usuario (username, password_hash, nombre_completo, email, rol, activo) VALUES ($1, $2, $3, $4, $5, true) RETURNING id, username, nombre_completo, email, rol',
-      [username, password_hash, nombre_completo, email || null, rol || 'empleado']
+      'INSERT INTO usuario (username, password_hash, rol, localidad_id, activo) VALUES ($1, $2, $3, $4, true) RETURNING id, username, rol, localidad_id',
+      [username, password_hash, rol || 'empleado', localidad_id || null]
     );
     res.status(201).json({ success: true, message: 'Usuario creado', data: result.rows[0] });
   } catch (error) {
@@ -53,14 +55,16 @@ export const createUsuario = async (req, res) => {
 export const updateUsuario = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nombre_completo, email, rol, activo } = req.body;
+    const { rol, localidad_id, activo } = req.body;
     const result = await pool.query(
-      `UPDATE usuario SET nombre_completo = COALESCE($1, nombre_completo), 
-       email = COALESCE($2, email), rol = COALESCE($3, rol),
-       activo = COALESCE($4, activo), updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $5 
-       RETURNING id, username, nombre_completo, email, rol, activo`,
-      [nombre_completo, email, rol, activo, id]
+      `UPDATE usuario SET 
+       rol = COALESCE($1, rol),
+       localidad_id = COALESCE($2, localidad_id),
+       activo = COALESCE($3, activo), 
+       updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $4 
+       RETURNING id, username, rol, localidad_id, activo`,
+      [rol, localidad_id, activo, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
@@ -76,13 +80,34 @@ export const deleteUsuario = async (req, res) => {
     const result = await pool.query(
       `UPDATE usuario SET activo = false, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $1 
-       RETURNING id, username, nombre_completo, email, rol`,
+       RETURNING id, username, rol`,
       [req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
     res.json({ success: true, message: 'Usuario eliminado', data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ── Login ──────────────────────────────────────────────────────────────────────
+export const authLogin = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Usuario y contraseña son requeridos' });
+    }
+    const result = await pool.query(
+      `SELECT id, username, rol FROM usuario
+       WHERE LOWER(username) = LOWER($1) AND password_hash = $2 AND activo = true`,
+      [username.trim(), password]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos' });
+    }
+    res.json({ success: true, user: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

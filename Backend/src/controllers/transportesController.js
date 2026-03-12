@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 export const getTransportes = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, codigo, nombre, cuit, contacto, telefono, activo, created_at
+      SELECT id, codigo, nombre, cuit, activo, created_at
       FROM transporte
       WHERE activo = true
       ORDER BY nombre ASC
@@ -32,13 +32,13 @@ export const getTransporteById = async (req, res) => {
 
 export const createTransporte = async (req, res) => {
   try {
-    const { codigo, nombre, cuit, contacto, telefono } = req.body;
+    const { codigo, nombre, cuit } = req.body;
     if (!nombre || !cuit) {
       return res.status(400).json({ success: false, error: 'Nombre y CUIT son requeridos' });
     }
     const result = await pool.query(
-      'INSERT INTO transporte (codigo, nombre, cuit, contacto, telefono, activo) VALUES ($1, $2, $3, $4, $5, true) RETURNING *',
-      [codigo || null, nombre, cuit, contacto || null, telefono || null]
+      'INSERT INTO transporte (codigo, nombre, cuit, activo) VALUES ($1, $2, $3, true) RETURNING *',
+      [codigo || null, nombre, cuit]
     );
     res.status(201).json({ success: true, message: 'Transporte creado', data: result.rows[0] });
   } catch (error) {
@@ -49,12 +49,12 @@ export const createTransporte = async (req, res) => {
 export const updateTransporte = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo, nombre, cuit, contacto, telefono, activo } = req.body;
+    const { codigo, nombre, cuit, activo } = req.body;
     const result = await pool.query(
       `UPDATE transporte SET codigo = COALESCE($1, codigo), nombre = COALESCE($2, nombre), 
-       cuit = COALESCE($3, cuit), contacto = COALESCE($4, contacto), telefono = COALESCE($5, telefono),
-       activo = COALESCE($6, activo), updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *`,
-      [codigo, nombre, cuit, contacto, telefono, activo, id]
+       cuit = COALESCE($3, cuit), activo = COALESCE($4, activo),
+       updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *`,
+      [codigo, nombre, cuit, activo, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Transporte no encontrado' });

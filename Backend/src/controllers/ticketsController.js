@@ -3,8 +3,20 @@ import pool from '../config/database.js';
 export const getTickets = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT tp.* FROM v_ticket_pesos tp
-      ORDER BY tp.numero_ticket DESC
+      SELECT t.id, t.numero_ticket, t.estado, t.observaciones, t.nro_remito, t.created_at,
+             p.peso, p.tipo as tipo_pesada, p.neto, p.fecha_hora as fecha_pesada,
+             c.apellido_nombre as chofer_nombre,
+             pr.nombre as productor_nombre,
+             tr.nombre as transporte_nombre,
+             v.patente as vehiculo_patente,
+             p.balancero
+      FROM ticket t
+      LEFT JOIN pesada p ON t.pesada_id = p.id
+      LEFT JOIN chofer c ON p.chofer_id = c.id
+      LEFT JOIN productor pr ON p.productor_id = pr.id
+      LEFT JOIN transporte tr ON p.transporte_id = tr.id
+      LEFT JOIN vehiculo v ON p.vehiculo_patente = v.patente
+      ORDER BY t.numero_ticket DESC
       LIMIT 100
     `);
     res.json({
@@ -19,7 +31,26 @@ export const getTickets = async (req, res) => {
 
 export const getTicketById = async (req, res) => {
   try {
-    const result = await pool.query('SELECT td.* FROM v_ticket_detalle td WHERE td.id = $1', [req.params.id]);
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT t.*, 
+             p.peso, p.tipo, p.neto, p.fecha_hora,
+             c.apellido_nombre as chofer_nombre, c.nro_documento as chofer_documento,
+             pr.nombre as productor_nombre,
+             tr.nombre as transporte_nombre, tr.cuit as transporte_cuit,
+             prod.nombre as producto_nombre,
+             v.patente, v.patente_acoplado, v.tipo_vehiculo,
+             p.balancero
+      FROM ticket t
+      LEFT JOIN pesada p ON t.pesada_id = p.id
+      LEFT JOIN chofer c ON p.chofer_id = c.id
+      LEFT JOIN productor pr ON p.productor_id = pr.id
+      LEFT JOIN transporte tr ON p.transporte_id = tr.id
+      LEFT JOIN producto prod ON p.producto_id = prod.id
+      LEFT JOIN vehiculo v ON p.vehiculo_patente = v.patente
+      WHERE t.id = $1
+    `, [id]);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Ticket no encontrado' });
     }
@@ -33,9 +64,21 @@ export const getTicketsByEstado = async (req, res) => {
   try {
     const { estado } = req.params;
     const result = await pool.query(`
-      SELECT tp.* FROM v_ticket_pesos tp
-      WHERE tp.estado = $1
-      ORDER BY tp.fecha_hora_entrada DESC
+      SELECT t.id, t.numero_ticket, t.estado, t.observaciones, t.nro_remito, t.created_at,
+             p.peso, p.tipo as tipo_pesada, p.neto, p.fecha_hora as fecha_pesada,
+             c.apellido_nombre as chofer_nombre,
+             pr.nombre as productor_nombre,
+             tr.nombre as transporte_nombre,
+             v.patente as vehiculo_patente,
+             p.balancero
+      FROM ticket t
+      LEFT JOIN pesada p ON t.pesada_id = p.id
+      LEFT JOIN chofer c ON p.chofer_id = c.id
+      LEFT JOIN productor pr ON p.productor_id = pr.id
+      LEFT JOIN transporte tr ON p.transporte_id = tr.id
+      LEFT JOIN vehiculo v ON p.vehiculo_patente = v.patente
+      WHERE t.estado = $1
+      ORDER BY t.numero_ticket DESC
     `, [estado]);
     res.json({
       success: true,
@@ -50,29 +93,21 @@ export const getTicketsByEstado = async (req, res) => {
 export const createTicket = async (req, res) => {
   try {
     const {
-      balanza_id,
-      chofer_id,
-      productor_id,
-      transporte_id,
-      producto_id,
-      vehiculo_id,
-      operario_id,
+      pesada_id,
       nro_remito,
       observaciones,
     } = req.body;
 
-    // Validaciones
-    if (!balanza_id || !chofer_id || !productor_id || !transporte_id || !producto_id || !vehiculo_id || !operario_id) {
-      return res.status(400).json({ success: false, error: 'Faltan campos requeridos' });
+    if (!pesada_id) {
+      return res.status(400).json({ success: false, error: 'pesada_id es requerido' });
     }
 
     const result = await pool.query(
       `INSERT INTO ticket (
-        balanza_id, chofer_id, productor_id, transporte_id, producto_id, vehiculo_id, operario_id,
-        nro_remito, observaciones, estado
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ABIERTO')
+        pesada_id, nro_remito, observaciones, estado
+      ) VALUES ($1, $2, $3, 'CERRADO')
       RETURNING *`,
-      [balanza_id, chofer_id, productor_id, transporte_id, producto_id, vehiculo_id, operario_id, nro_remito || null, observaciones || null]
+      [pesada_id, nro_remito || null, observaciones || null]
     );
 
     res.status(201).json({
@@ -118,7 +153,6 @@ export const closeTicket = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Actualizar estado a CERRADO
     const result = await pool.query(
       `UPDATE ticket SET 
        estado = 'CERRADO',
@@ -149,10 +183,13 @@ export const getTicketsByDateRange = async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT tp.* FROM v_ticket_pesos tp
-      WHERE tp.fecha_hora_entrada >= $1::DATE
-        AND tp.fecha_hora_entrada < $2::DATE + INTERVAL '1 day'
-      ORDER BY tp.fecha_hora_entrada DESC
+      SELECT t.*, p.fecha_hora, v.patente
+      FROM ticket t
+      JOIN pesada p ON t.pesada_id = p.id
+      JOIN vehiculo v ON p.vehiculo_patente = v.patente
+      WHERE p.fecha_hora >= $1::DATE
+        AND p.fecha_hora < $2::DATE + INTERVAL '1 day'
+      ORDER BY p.fecha_hora DESC
     `, [startDate, endDate]);
 
     res.json({
