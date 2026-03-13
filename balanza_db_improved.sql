@@ -195,11 +195,7 @@ CREATE TABLE ticket (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-
 CREATE INDEX idx_ticket_estado ON ticket(estado);
-
-
-
 
 /* =============================
    PESADAS (DETALLE)
