@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-carta-porte, #printable-carta-porte *, #printable-carta-porte::before, #printable-carta-porte::after {
+    visibility: visible;
+  }
+  #printable-carta-porte {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white;
+    box-shadow: none;
+    border: none;
+    break-inside: avoid;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Scale, Info, Wifi, WifiOff, Download, Camera, RefreshCw, Monitor } from 'lucide-react';
+import { Plus, Trash2, Scale, Info, Wifi, WifiOff, Download, Camera, RefreshCw, Monitor, FileText } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
-
-const API_BASE_URL = 'http://localhost:3000';
-const WS_URL = 'ws://localhost:3000';
+import CartaPortePreview from './CartaPortePreview';
+const API_BASE_URL = '';
+const getWsUrl = () => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host; // Host incluye el puerto de Vite (5173 o túnel)
+  return `${protocol}//${host}/ws`;
+};
+const WS_URL = getWsUrl();
 
 export default function PesadaForm() {
   const { isDark } = useThemeContext();
@@ -39,7 +44,7 @@ export default function PesadaForm() {
   });
 
   const [pesadas, setPesadas] = useState([]);
-
+  const [mostrarCartaPorte, setMostrarCartaPorte] = useState(false);
   // WebSocket connection
   useEffect(() => {
     const connectWS = () => {
@@ -460,6 +465,16 @@ export default function PesadaForm() {
                 TARA
               </button>
             </div>
+            <div className="mt-4">
+              <button
+                onClick={() => setMostrarCartaPorte(true)}
+                type="button"
+                className={`w-full px-8 py-4 ${isDark ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20' : 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/20'} text-white font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95`}
+              >
+                <FileText size={20} />
+                GENERAR CARTA PORTE
+              </button>
+            </div>
           </div>
         </div>
 
@@ -528,6 +543,14 @@ export default function PesadaForm() {
           El panel izquierdo muestra el peso en tiempo real de la balanza. Usa el botón azul para capturarlo y registrarlo.
         </div>
       </div>
+
+      {mostrarCartaPorte && (
+        <CartaPortePreview 
+          formData={formData} 
+          balanzaPeso={balanzaPeso} 
+          onClose={() => setMostrarCartaPorte(false)} 
+        />
+      )}
     </div>
   );
 }

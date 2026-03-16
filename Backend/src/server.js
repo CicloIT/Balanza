@@ -26,6 +26,7 @@ import localidadesRoutes from './routes/localidades.js';
 import operacionesRoutes from './routes/operaciones.js';
 import metricasRoutes from './routes/metricas.js';
 import camarasRoutes from './routes/camaras.js';
+import reportesRoutes from './routes/reporte.js';
 
 dotenv.config();
 
@@ -119,9 +120,8 @@ wss.on('connection', (ws) => {
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rutas API
 app.use('/api/choferes', choferesRoutes);
 app.use('/api/productores', productoresRoutes);
@@ -136,6 +136,7 @@ app.use('/api/localidades', localidadesRoutes);
 app.use('/api/operaciones', operacionesRoutes);
 app.use('/api/metricas', metricasRoutes);
 app.use('/api/camaras', camarasRoutes);
+app.use('/api/reportes', reportesRoutes);
 
 const CAPTURAS_DIR = path.join(__dirname, "../capturas");
 if (!fs.existsSync(CAPTURAS_DIR)) {
@@ -194,7 +195,8 @@ server.listen(PORT, () => {
   console.log(`   GET  /api/tickets             - Listar tickets`);
   console.log(`   GET  /api/pesadas             - Listar pesadas`);
   console.log(`   GET  /api/usuarios            - Listar usuarios`);
-  console.log(`   GET  /api/camaras             - Captura NVR\n`);
+  console.log(`   GET  /api/camaras             - Captura NVR`);
+  console.log(`   GET  /api/reportes            - Listar reportes\n`);
 });
 
 export default app;

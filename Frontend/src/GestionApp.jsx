@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Header from './components/Header';
-
 import ActionBar from './components/ActionBar';
 import TablaItems from './components/TablaItems';
 import ModalForm from './components/ModalForm';
@@ -17,11 +16,13 @@ import { localidadesConfig } from './config/localidadesConfig';
 import { vehiculosConfig } from './config/vehiculosConfig';
 import { pesadasConfig } from './config/pesadasConfig';
 import Dashboard from './components/Dashboard';
+import CartaPortePreview from './components/CartaPortePreview';
+import ReportePesadas from './components/ReportePesadas';
+import ReportesHistorial from './components/ReportesHistorial';
 
 export default function GestionApp() {
   const { isDark } = useThemeContext();
 
-  // Configuraciones
   const configs = {
     choferes: choferesConfig,
     productores: productoresConfig,
@@ -33,7 +34,6 @@ export default function GestionApp() {
     pesadas: pesadasConfig,
   };
 
-  // Estados
   const [activeTab, setActiveTab] = useState('dashboard');
   const choferes = useGestionAPI(choferesConfig);
   const productores = useGestionAPI(productoresConfig);
@@ -44,22 +44,17 @@ export default function GestionApp() {
   const vehiculos = useGestionAPI(vehiculosConfig);
   const pesadas = useGestionAPI(pesadasConfig);
 
-  // Mapeo de gestion por tipo
+  const [pesadaParaImprimir, setPesadaParaImprimir] = useState(null);
+  const [pesadasReporte, setPesadasReporte] = useState(null);
+
   const gestionMap = {
-    choferes,
-    productores,
-    productos,
-    transportes,
-    provincias,
-    localidades,
-    vehiculos,
-    pesadas,
+    choferes, productores, productos, transportes,
+    provincias, localidades, vehiculos, pesadas,
   };
 
   const currentGestion = gestionMap[activeTab];
   const currentConfig = configs[activeTab];
 
-  // Preparar datos para tabs
   const tabs = [
     { id: 'dashboard', label: '📊 Dashboard', count: null },
     { id: 'choferes', label: choferesConfig.label, count: choferes.items.length },
@@ -71,16 +66,17 @@ export default function GestionApp() {
     { id: 'vehiculos', label: vehiculosConfig.label, count: vehiculos.items.length },
     { id: 'pesada', label: '📟 Nueva Pesada', count: null },
     { id: 'pesadas', label: pesadasConfig.label, count: pesadas.items.length },
-
+    { id: 'reportes-historial', label: '📋 Reportes', count: null },
   ];
 
-  // Componente para mostrar alerts
+  // Tabs que no usan el layout genérico de tabla
+  const tabsEspeciales = ['pesada', 'dashboard', 'reportes-historial'];
+
   const AlertBox = ({ type, message }) => {
     if (!message) return null;
     const bgColor = type === 'success'
       ? isDark ? 'bg-green-500/30 border-green-500/50 text-green-300' : 'bg-green-50 border-green-200 text-green-800'
       : isDark ? 'bg-red-500/30 border-red-500/50 text-red-300' : 'bg-red-50 border-red-200 text-red-800';
-
     return (
       <div className={`border rounded-lg p-4 mb-4 animate-fadeIn ${bgColor}`}>
         {message}
@@ -93,7 +89,6 @@ export default function GestionApp() {
       ? 'bg-linear-to-br from-slate-900 via-slate-800 to-slate-900'
       : 'bg-linear-to-br from-blue-50 via-white to-cyan-50'
       }`}>
-      {/* Efecto decorativo de fondo */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {isDark ? (
           <>
@@ -108,45 +103,41 @@ export default function GestionApp() {
         )}
       </div>
 
-      {/* Header */}
       <div className="relative z-10">
-        <Header
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          tabs={tabs}
-        />
+        <Header activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
       </div>
 
-      {/* Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
-        {/* Mostrar Alerts - Solo si no estamos en pesada ni dashboard */}
-        {activeTab !== 'pesada' && activeTab !== 'dashboard' && (
+
+        {!tabsEspeciales.includes(activeTab) && (
           <>
             <AlertBox type="error" message={currentGestion?.error} />
             <AlertBox type="success" message={currentGestion?.success} />
           </>
         )}
 
-        {/* Tab de Pesada o Dashboard */}
-        {activeTab === 'pesada' ? (
+        {/* Tabs especiales */}
+        {activeTab === 'pesada' && (
           <PesadaForm
             transportes={transportes.items}
             choferes={choferes.items}
             productos={productos.items}
             productores={productores.items}
           />
-        ) : activeTab === 'dashboard' ? (
-          <Dashboard />
+        )}
 
-        ) : (
+        {activeTab === 'dashboard' && <Dashboard />}
+
+        {activeTab === 'reportes-historial' && <ReportesHistorial />}
+
+        {/* Tabs con tabla genérica */}
+        {!tabsEspeciales.includes(activeTab) && currentConfig && (
           <div className={`backdrop-blur-xl transition-colors duration-300 rounded-2xl shadow-2xl overflow-hidden ${isDark
             ? 'bg-white/10 border border-white/20'
             : 'bg-white/70 border border-slate-200'
             }`}>
-            {/* Barra superior con gradiente */}
             <div className="h-1 bg-linear-to-r from-blue-500 via-cyan-500 to-blue-500"></div>
 
-            {/* Action Bar */}
             <ActionBar
               titulo={currentConfig.plural}
               count={currentGestion.items.length}
@@ -155,7 +146,6 @@ export default function GestionApp() {
               soloLectura={activeTab === 'pesadas'}
             />
 
-            {/* Tabla o Empty State */}
             {currentGestion.loading ? (
               <div className="flex items-center justify-center p-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: isDark ? '#06b6d4' : '#0ea5e9' }}></div>
@@ -170,6 +160,8 @@ export default function GestionApp() {
                   onEditar={(item) => currentGestion.abrirModal(item)}
                   onEliminar={(id) => currentGestion.eliminarItem(id)}
                   onToggleEstado={(id) => currentGestion.toggleEstado(id)}
+                  onImprimir={(item) => setPesadaParaImprimir(item)}
+                  onGenerarReporte={(items) => setPesadasReporte(items)}
                   soloLectura={activeTab === 'pesadas'}
                 />
               </div>
@@ -183,8 +175,8 @@ export default function GestionApp() {
         )}
       </div>
 
-      {/* Modales */}
-      {activeTab !== 'pesada' && activeTab !== 'pesadas' && activeTab !== 'dashboard' && currentGestion && (
+      {/* Modal formulario */}
+      {!tabsEspeciales.includes(activeTab) && activeTab !== 'pesadas' && currentGestion && (
         <ModalForm
           abierto={currentGestion.modal.abierto}
           titulo={
@@ -202,14 +194,28 @@ export default function GestionApp() {
         />
       )}
 
+      {/* Carta porte individual */}
+      {pesadaParaImprimir && (
+        <CartaPortePreview
+          pesadaData={pesadaParaImprimir}
+          onClose={() => setPesadaParaImprimir(null)}
+        />
+      )}
+
+      {/* Reporte de múltiples pesadas — se guarda automáticamente */}
+      {pesadasReporte && (
+        <ReportePesadas
+          pesadas={pesadasReporte}
+          onClose={() => setPesadasReporte(null)}
+        />
+      )}
+
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
-          to { opacity: 1; }
+          to   { opacity: 1; }
         }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-in-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
       `}</style>
     </div>
   );

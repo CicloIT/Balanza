@@ -1,23 +1,18 @@
 import pool from '../config/database.js';
-// Triggering reload for Phase 3 Metrics
 
-/**
- * Obtener métricas para el dashboard
- */
 export const getMetricasDashboard = async (req, res) => {
   try {
-    // Fechas para filtros
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const inicioSemana = new Date(hoy);
-    inicioSemana.setDate(hoy.getDate() - hoy.getDay());
+    inicioSemana.setDate(hoy.getDate() - 7); // Últimos 7 días en lugar de inicio de semana
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
     // 1. Total de pesadas hoy
     const pesadasHoy = await pool.query(`
       SELECT COUNT(*) as total,
-             COALESCE(SUM(CASE WHEN tipo = 'BRUTO' THEN peso END), 0) as bruto_total,
-             COALESCE(SUM(CASE WHEN tipo = 'TARA' THEN peso END), 0) as tara_total
+             COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) as bruto_total,
+             COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as tara_total
       FROM pesada
       WHERE DATE(fecha_hora) = CURRENT_DATE
     `);
@@ -31,18 +26,18 @@ export const getMetricasDashboard = async (req, res) => {
       WHERE DATE(created_at) = CURRENT_DATE
     `);
 
-    // 3. Pesadas de la semana por día
+    // 3. Pesadas de la semana por día (Últimos 7 días reales)
     const pesadasSemana = await pool.query(`
       SELECT
         DATE(fecha_hora) as fecha,
         COUNT(*) as total_pesadas,
-        COALESCE(SUM(CASE WHEN tipo = 'BRUTO' THEN peso END), 0) as bruto,
-        COALESCE(SUM(CASE WHEN tipo = 'TARA' THEN peso END), 0) as tara
+        COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) as bruto,
+        COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as tara
       FROM pesada
-      WHERE fecha_hora >= $1
+      WHERE fecha_hora >= CURRENT_DATE - INTERVAL '7 days'
       GROUP BY DATE(fecha_hora)
       ORDER BY fecha ASC
-    `, [inicioSemana]);
+    `);
 
     // 4. Top 5 productores por peso neto
     const topProductores = await pool.query(`
@@ -74,7 +69,7 @@ export const getMetricasDashboard = async (req, res) => {
       LIMIT 5
     `, [inicioMes]);
 
-    // 6. Distribución por tipo de vehículo (NEW)
+    // 6. Distribución por tipo de vehículo
     const distribucionVehiculos = await pool.query(`
       SELECT
         v.tipo_vehiculo,
@@ -87,7 +82,7 @@ export const getMetricasDashboard = async (req, res) => {
       ORDER BY peso_neto DESC
     `, [inicioMes]);
 
-    // 7. Top 5 Transportes (NEW)
+    // 7. Top 5 Transportes
     const topTransportes = await pool.query(`
       SELECT
         t.nombre,
@@ -102,7 +97,7 @@ export const getMetricasDashboard = async (req, res) => {
       LIMIT 5
     `, [inicioMes]);
 
-    // 8. Top 5 Choferes (NEW)
+    // 8. Top 5 Choferes
     const topChoferes = await pool.query(`
       SELECT
         c.apellido_nombre as nombre,
@@ -116,7 +111,7 @@ export const getMetricasDashboard = async (req, res) => {
       LIMIT 5
     `, [inicioMes]);
 
-    // 9. Estadísticas generales con Carga Promedio
+    // 9. Estadísticas generales
     const estadisticasGenerales = await pool.query(`
       SELECT
         COUNT(DISTINCT p.id) as total_pesadas_mes,
@@ -127,15 +122,15 @@ export const getMetricasDashboard = async (req, res) => {
       WHERE p.fecha_hora >= $1
     `, [inicioMes]);
 
-    // 10. Tickets generados hoy
+    // 10. Reportes generados hoy
+    // ← CORREGIDO: antes usaba t.pesada_id que ya no existe en la nueva tabla ticket
     const ticketsHoy = await pool.query(`
       SELECT COUNT(*) as total_tickets
-      FROM ticket t
-      JOIN pesada p ON t.pesada_id = p.id
-      WHERE DATE(p.fecha_hora) = CURRENT_DATE
+      FROM reporte
+      WHERE DATE(created_at) = CURRENT_DATE
     `);
 
-    // 11. Comparativo últimos 6 meses (para el gráfico consolidado)
+    // 11. Comparativo últimos 6 meses
     const comparativoResult = await pool.query(`
       SELECT
         EXTRACT(YEAR FROM fecha_hora) as anio,
@@ -158,9 +153,9 @@ export const getMetricasDashboard = async (req, res) => {
       pesoNeto: parseFloat(row.peso_neto)
     })).reverse();
 
-    // 12. Actividad por hora (Heatmap - últimos 7 días)
+    // 12. Actividad por hora (últimos 7 días)
     const actividadPorHora = await pool.query(`
-      SELECT 
+      SELECT
         EXTRACT(DOW FROM fecha_hora) as dia_semana,
         EXTRACT(HOUR FROM fecha_hora) as hora,
         COUNT(*) as total
@@ -170,12 +165,12 @@ export const getMetricasDashboard = async (req, res) => {
       ORDER BY dia_semana, hora
     `);
 
-    // 13. Índice de Eficiencia (Tiempo promedio de procesamiento en minutos)
+    // 13. Índice de eficiencia
     const eficienciaResult = await pool.query(`
-      SELECT 
+      SELECT
         COALESCE(AVG(duracion_minutos), 0) as promedio_minutos
       FROM (
-        SELECT 
+        SELECT
           EXTRACT(EPOCH FROM (MAX(fecha_hora) - MIN(fecha_hora))) / 60 as duracion_minutos
         FROM pesada
         WHERE fecha_hora >= $1
@@ -186,7 +181,7 @@ export const getMetricasDashboard = async (req, res) => {
 
     res.json({
       success: true,
-      debug_version: "PHASE_3_V1",
+      debug_version: 'PHASE_3_V2',
       data: {
         hoy: {
           pesadas: parseInt(pesadasHoy.rows[0]?.total || 0),
@@ -255,9 +250,6 @@ export const getMetricasDashboard = async (req, res) => {
   }
 };
 
-/**
- * Obtener métricas filtradas por fecha
- */
 export const getMetricasPorFecha = async (req, res) => {
   try {
     const { fechaInicio, fechaFin } = req.query;
@@ -281,8 +273,8 @@ export const getMetricasPorFecha = async (req, res) => {
         DATE(p.fecha_hora) as fecha,
         COUNT(*) as total_pesadas,
         COUNT(DISTINCT p.operacion_id) as operaciones,
-        COALESCE(SUM(CASE WHEN p.tipo = 'BRUTO' THEN p.peso END), 0) as bruto,
-        COALESCE(SUM(CASE WHEN p.tipo = 'TARA' THEN p.peso END), 0) as tara
+        COALESCE(SUM(CASE WHEN p.tipo::text = 'BRUTO' THEN p.peso END), 0) as bruto,
+        COALESCE(SUM(CASE WHEN p.tipo::text = 'TARA' THEN p.peso END), 0) as tara
       FROM pesada p
       ${whereClause}
       GROUP BY DATE(p.fecha_hora)
@@ -306,9 +298,6 @@ export const getMetricasPorFecha = async (req, res) => {
   }
 };
 
-/**
- * Obtener comparativo mensual
- */
 export const getComparativoMensual = async (req, res) => {
   try {
     const result = await pool.query(`
@@ -316,8 +305,8 @@ export const getComparativoMensual = async (req, res) => {
         EXTRACT(YEAR FROM fecha_hora) as anio,
         EXTRACT(MONTH FROM fecha_hora) as mes,
         COUNT(*) as total_pesadas,
-        COALESCE(SUM(CASE WHEN tipo = 'BRUTO' THEN peso END), 0) -
-        COALESCE(SUM(CASE WHEN tipo = 'TARA' THEN peso END), 0) as peso_neto
+        COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) -
+        COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as peso_neto
       FROM pesada
       WHERE fecha_hora >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months')
       GROUP BY EXTRACT(YEAR FROM fecha_hora), EXTRACT(MONTH FROM fecha_hora)

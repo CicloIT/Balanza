@@ -3,17 +3,24 @@ import pool from '../config/database.js';
 export const getPesadas = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, op.vehiculo_patente, op.abierta as operacion_abierta
+      SELECT 
+        p.*,
+        op.vehiculo_patente,
+        op.abierta as operacion_abierta,
+        c.apellido_nombre  AS chofer,
+        prod.nombre        AS producto,
+        ptr.nombre         AS productor,
+        tr.nombre          AS transporte
       FROM pesada p
       JOIN operacion_pesaje op ON p.operacion_id = op.id
+      LEFT JOIN chofer    c   ON p.chofer_id    = c.id
+      LEFT JOIN producto  prod ON p.producto_id  = prod.id
+      LEFT JOIN productor ptr  ON p.productor_id = ptr.id
+      LEFT JOIN transporte tr  ON p.transporte_id = tr.id
       ORDER BY p.fecha_hora DESC
       LIMIT 200
     `);
-    res.json({
-      success: true,
-      data: result.rows,
-      count: result.rows.length,
-    });
+    res.json({ success: true, data: result.rows, count: result.rows.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -204,17 +211,27 @@ export const getPesadasAgrupadas = async (req, res) => {
   try {
     // Usamos la vista definida en el SQL si existe, o una consulta manual
     const result = await pool.query(`
-      SELECT op.id as operacion_id, op.vehiculo_patente, 
-             MAX(CASE WHEN p.tipo = 'BRUTO' THEN p.peso END) as bruto,
-             MAX(CASE WHEN p.tipo = 'TARA' THEN p.peso END) as tara,
+      SELECT op.id as id, op.id as operacion_id, op.vehiculo_patente, 
+             MAX(CASE WHEN p.tipo::text = 'BRUTO' THEN p.peso END) as bruto,
+             MAX(CASE WHEN p.tipo::text = 'TARA' THEN p.peso END) as tara,
              MAX(p.neto) as neto,
              MIN(p.fecha_hora) as fecha_entrada,
              MAX(p.fecha_hora) as fecha_salida,
-             op.abierta
+             op.abierta,
+             MAX(c.apellido_nombre) as chofer,
+             MAX(prod.nombre) as producto,
+             MAX(ptr.nombre) as productor,
+             MAX(tr.nombre) as transporte,
+             MAX(p.balancero) as balancero,
+             MAX(p.nro_remito) as nro_remito
       FROM operacion_pesaje op
       LEFT JOIN pesada p ON op.id = p.operacion_id
+      LEFT JOIN chofer c ON p.chofer_id = c.id
+      LEFT JOIN producto prod ON p.producto_id = prod.id
+      LEFT JOIN productor ptr ON p.productor_id = ptr.id
+      LEFT JOIN transporte tr ON p.transporte_id = tr.id
       GROUP BY op.id, op.vehiculo_patente, op.abierta
-      ORDER BY op.created_at DESC
+      ORDER BY op.id DESC
     `);
     res.json({
       success: true,
