@@ -4,6 +4,33 @@ import { useThemeContext } from '../context/ThemeContext';
 
 const API_BASE_URL = '';
 
+const STORAGE_KEY = 'balanza_user';
+
+// Helper para obtener headers con información del usuario
+const getAuthHeaders = (contentType = 'application/json') => {
+    const headers = {};
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const user = JSON.parse(stored);
+            if (user?.id) {
+                headers['x-user-id'] = user.id.toString();
+            }
+            if (user?.username) {
+                headers['x-username'] = user.username;
+            }
+        }
+    } catch {
+        // Ignorar errores
+    }
+
+    return headers;
+};
+
 export default function ReportePesadas({ pesadas, onClose }) {
     const { isDark } = useThemeContext();
     const [guardando, setGuardando] = useState(true);
@@ -25,7 +52,7 @@ export default function ReportePesadas({ pesadas, onClose }) {
             setErrorGuardar(null);
             const res = await fetch(`${API_BASE_URL}/api/reportes`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ pesadas })
             });
             const data = await res.json();

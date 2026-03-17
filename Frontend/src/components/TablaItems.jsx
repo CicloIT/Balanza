@@ -1,12 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { Edit2, Trash2, Eye, EyeOff, Printer, FileText, CheckSquare, Square } from 'lucide-react';
+import { Edit2, Trash2, Eye, EyeOff, FileText, CheckSquare, Square, Upload } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
+import Guard from './Guard';
 
 const FilaTabla = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, renderCelda,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onImprimir,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF,
   soloLectura, mostrarColumnaAcciones
 }) => {
+  // Generar prefijo de permisos basado en el tipo (módulo)
+  const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
+
   return (
     <tr
       className={`transition-all duration-150 ${selected
@@ -40,46 +44,82 @@ const FilaTabla = React.memo(({
           <div className="flex gap-2">
             {!soloLectura && (
               <>
-                <button
-                  onClick={() => onToggleEstado(item.id)}
-                  className={`p-2 rounded-lg transition-all hover:scale-110 ${item.estado === 'activo'
-                    ? isDark ? 'bg-green-500/30 text-green-400 hover:bg-green-500/50' : 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
-                    }`}
-                  title={item.estado === 'activo' ? 'Desactivar' : 'Activar'}
-                >
-                  {item.estado === 'activo' ? <Eye size={18} /> : <EyeOff size={18} />}
-                </button>
-                <button
-                  onClick={() => onEditar(item)}
-                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'bg-blue-500/30 text-blue-400 hover:bg-blue-500/50' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    }`}
-                  title="Editar"
-                >
-                  <Edit2 size={18} />
-                </button>
-                <button
-                  onClick={() => onEliminar(item.id)}
-                  className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
-                    }`}
-                  title="Eliminar"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <Guard permissions={`${resourcePrefix}:update`}>
+                  <button
+                    onClick={() => onToggleEstado(item.id)}
+                    className={`p-2 rounded-lg transition-all hover:scale-110 ${item.estado === 'activo'
+                      ? isDark ? 'bg-green-500/30 text-green-400 hover:bg-green-500/50' : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      : isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
+                    title={item.estado === 'activo' ? 'Desactivar' : 'Activar'}
+                  >
+                    {item.estado === 'activo' ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </Guard>
+
+                <Guard permissions={`${resourcePrefix}:update`}>
+                  <button
+                    onClick={() => onEditar(item)}
+                    className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'bg-blue-500/30 text-blue-400 hover:bg-blue-500/50' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      }`}
+                    title="Editar"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                </Guard>
+
+                <Guard permissions={`${resourcePrefix}:delete`}>
+                  <button
+                    onClick={() => onEliminar(item.id)}
+                    className={`p-2 rounded-lg transition-all hover:scale-110 ${isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`}
+                    title="Eliminar"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </Guard>
               </>
             )}
 
             {tipo === 'pesadas' && (
-              <button
-                onClick={() => onImprimir && onImprimir(item)}
-                className={`p-2 rounded-lg transition-all hover:scale-110 border ${isDark
-                  ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/40'
-                  : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
-                  }`}
-                title="Imprimir Carta Porte"
-              >
-                <Printer size={18} />
-              </button>
+              <>
+                {item.ruta && (
+                  <a
+                    href={item.ruta.startsWith('documentos/') ? `/${item.ruta}` : `/documentos/${item.ruta}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:scale-105 border font-semibold text-sm shadow-sm ${isDark
+                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/40'
+                      : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    title="Ver Carta de Porte PDF"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <FileText size={18} />
+                    <span>Ver Carta Porte</span>
+                  </a>
+                )}
+                {!item.ruta && (
+                  <Guard permissions="pesaje:update">
+                    <label
+                      className={`p-2 rounded-lg cursor-pointer transition-all hover:scale-110 border ${isDark
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/40'
+                        : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                        }`}
+                      title="Subir Carta de Porte PDF"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Upload size={18} />
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="application/pdf"
+                        onChange={(e) => onSubirPDF && onSubirPDF(e, item.id)}
+                      />
+                    </label>
+                  </Guard>
+                )}
+              </>
             )}
           </div>
         </td>
@@ -96,7 +136,7 @@ export default function TablaItems({
   onEditar,
   onEliminar,
   onToggleEstado,
-  onImprimir,
+  onSubirPDF,
   onGenerarReporte,
   soloLectura = false
 }) {
@@ -322,7 +362,7 @@ export default function TablaItems({
                 onToggleEstado={onToggleEstado}
                 onEditar={onEditar}
                 onEliminar={onEliminar}
-                onImprimir={onImprimir}
+                onSubirPDF={onSubirPDF}
                 soloLectura={soloLectura}
                 mostrarColumnaAcciones={mostrarColumnaAcciones}
               />

@@ -5,6 +5,33 @@ import { ReportePreview } from './ReportePesadas';
 
 const API_BASE_URL = '';
 
+const STORAGE_KEY = 'balanza_user';
+
+// Helper para obtener headers con información del usuario
+const getAuthHeaders = (contentType = 'application/json') => {
+    const headers = {};
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const user = JSON.parse(stored);
+            if (user?.id) {
+                headers['x-user-id'] = user.id.toString();
+            }
+            if (user?.username) {
+                headers['x-username'] = user.username;
+            }
+        }
+    } catch {
+        // Ignorar errores
+    }
+
+    return headers;
+};
+
 export default function ReportesHistorial() {
     const { isDark } = useThemeContext();
 
@@ -21,7 +48,9 @@ export default function ReportesHistorial() {
         try {
             setLoading(true);
             setError(null);
-            const res = await fetch(`${API_BASE_URL}/api/reportes`);
+            const res = await fetch(`${API_BASE_URL}/api/reportes`, {
+                headers: getAuthHeaders(null)
+            });
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
             setReportes(data.data);
@@ -34,7 +63,9 @@ export default function ReportesHistorial() {
 
     const abrirReporte = async (id) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/reportes/${id}`);
+            const res = await fetch(`${API_BASE_URL}/api/reportes/${id}`, {
+                headers: getAuthHeaders(null)
+            });
             const data = await res.json();
             if (!data.success) throw new Error(data.error);
             setReporteAbierto(data.data);

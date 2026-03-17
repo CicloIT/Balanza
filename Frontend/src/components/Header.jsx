@@ -35,8 +35,13 @@ export default function Header({
                   ? 'bg-white/5 border-white/10 text-slate-200'
                   : 'bg-slate-100 border-slate-200 text-slate-700'
               }`}>
-                <span className="text-lg">
-                  {user.rol === 'admin' ? '👑' : '⚖️'}
+                <span className="text-lg" title={`Rol: ${user.rol}`}>
+                  {user.rol === 'admin' && '👑'}
+                  {user.rol === 'gerente' && '💼'}
+                  {user.rol === 'restriccion' && '🚫'}
+                  {user.rol === 'balancero' && '⚖️'}
+                  {user.rol === 'subalancero' && '🔧'}
+                  {!['admin', 'gerente', 'restriccion', 'balancero', 'subalancero'].includes(user.rol) && '👤'}
                 </span>
                 <div className="leading-none">
                   <p className={`text-xs font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>

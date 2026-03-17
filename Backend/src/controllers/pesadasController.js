@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { hasPermission, PERMISSIONS } from '../config/rolesConfig.js';
 
 export const getPesadas = async (req, res) => {
   try {
@@ -57,7 +58,7 @@ export const createPesada = async (req, res) => {
     await client.query('BEGIN');
     const {
       vehiculo_patente, tipo, peso, chofer_id, productor_id,
-      transporte_id, producto_id, balancero, nro_remito
+      transporte_id, producto_id, balancero, nro_remito, es_manual
     } = req.body;
 
     // Validaciones
@@ -71,6 +72,22 @@ export const createPesada = async (req, res) => {
 
     if (peso <= 0) {
       return res.status(400).json({ success: false, error: 'El peso debe ser positivo' });
+    }
+
+    // Validación de permiso para carga manual
+    // Si es_manual es 'true' o true, verificar que el usuario tenga el permiso PESAJE_MANUAL
+    if (es_manual === 'true' || es_manual === true) {
+      const userRol = req.user?.rol;
+      if (!hasPermission(userRol, PERMISSIONS.PESAJE_MANUAL)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          error: 'No tiene permiso para cargar peso manualmente. Solo balancero y subalancero pueden hacerlo.',
+          code: 'MANUAL_WEIGHT_FORBIDDEN',
+          requiredPermission: PERMISSIONS.PESAJE_MANUAL,
+          currentRole: userRol
+        });
+      }
     }
 
     // Buscar operación abierta
@@ -107,15 +124,16 @@ export const createPesada = async (req, res) => {
     const result = await client.query(
       `INSERT INTO pesada (
         operacion_id, tipo, peso, chofer_id, productor_id, 
-        transporte_id, producto_id, vehiculo_patente, balancero, nro_remito
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        transporte_id, producto_id, vehiculo_patente, balancero, nro_remito, ruta
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         operacion_id, tipo, peso,
         chofer_id || null, productor_id || null,
         transporte_id || null, producto_id || null,
         vehiculo_patente, balancero || null,
-        nro_remito || null
+        nro_remito || null,
+        req.file ? `documentos/${req.file.filename}` : null
       ]
     );
 
@@ -158,9 +176,10 @@ export const updatePesada = async (req, res) => {
     const result = await pool.query(
       `UPDATE pesada SET 
        peso = COALESCE($1, peso),
-       balancero = COALESCE($2, balancero)
-       WHERE id = $3 RETURNING *`,
-      [peso, balancero, id]
+       balancero = COALESCE($2, balancero),
+       ruta = COALESCE($3, ruta)
+       WHERE id = $4 RETURNING *`,
+      [peso, balancero, req.file ? `documentos/${req.file.filename}` : null, id]
     );
 
     if (result.rows.length === 0) {
@@ -171,6 +190,34 @@ export const updatePesada = async (req, res) => {
       success: true,
       message: 'Pesada actualizada exitosamente',
       data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updatePdfByOperacion = async (req, res) => {
+  try {
+    const { operacionId } = req.params;
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No se envió ningún archivo PDF' });
+    }
+
+    const result = await pool.query(
+      `UPDATE pesada SET 
+       ruta = $1
+       WHERE operacion_id = $2 RETURNING *`,
+      [`documentos/${req.file.filename}`, operacionId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'No se encontraron pesadas para esta operación' });
+    }
+
+    res.json({
+      success: true,
+      message: 'PDF asociado a la operación exitosamente',
+      data: result.rows,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -223,7 +270,8 @@ export const getPesadasAgrupadas = async (req, res) => {
              MAX(ptr.nombre) as productor,
              MAX(tr.nombre) as transporte,
              MAX(p.balancero) as balancero,
-             MAX(p.nro_remito) as nro_remito
+             MAX(p.nro_remito) as nro_remito,
+             MAX(p.ruta) as ruta
       FROM operacion_pesaje op
       LEFT JOIN pesada p ON op.id = p.operacion_id
       LEFT JOIN chofer c ON p.chofer_id = c.id

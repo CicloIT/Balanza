@@ -6,13 +6,15 @@ import {
   updateTransporte,
   deleteTransporte,
 } from '../controllers/transportesController.js';
+import { requireAuth, requirePermission, optionalAuth } from '../middleware/authMiddleware.js';
+import { PERMISSIONS } from '../config/rolesConfig.js';
 
 const router = express.Router();
 
-router.get('/', getTransportes);
-router.get('/:id', getTransporteById);
-router.post('/', createTransporte);
-router.put('/:id', updateTransporte);
-router.delete('/:id', deleteTransporte);
+router.get('/', optionalAuth, requirePermission(PERMISSIONS.TRANSPORTES_VIEW), getTransportes);
+router.get('/:id', optionalAuth, requirePermission(PERMISSIONS.TRANSPORTES_VIEW), getTransporteById);
+router.post('/', requireAuth, requirePermission(PERMISSIONS.TRANSPORTES_CREATE), createTransporte);
+router.put('/:id', requireAuth, requirePermission(PERMISSIONS.TRANSPORTES_UPDATE), updateTransporte);
+router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.TRANSPORTES_DELETE), deleteTransporte);
 
 export default router;

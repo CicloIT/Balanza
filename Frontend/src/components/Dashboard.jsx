@@ -202,6 +202,33 @@ const ChartCard = ({ title, children, className = '', subtitle }) => {
   );
 };
 
+const STORAGE_KEY = 'balanza_user';
+
+// Helper para obtener headers con información del usuario
+const getAuthHeaders = (contentType = 'application/json') => {
+  const headers = {};
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const user = JSON.parse(stored);
+      if (user?.id) {
+        headers['x-user-id'] = user.id.toString();
+      }
+      if (user?.username) {
+        headers['x-username'] = user.username;
+      }
+    }
+  } catch {
+    // Ignorar errores
+  }
+
+  return headers;
+};
+
 export default function Dashboard() {
   const { isDark } = useThemeContext();
   const [loading, setLoading] = useState(true);
@@ -213,7 +240,9 @@ export default function Dashboard() {
     const fetchMetricas = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_URL}/api/metricas/dashboard`);
+        const response = await fetch(`${API_URL}/api/metricas/dashboard`, {
+          headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (data.success) {

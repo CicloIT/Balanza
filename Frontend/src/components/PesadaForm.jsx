@@ -1,8 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Scale, Info, Wifi, WifiOff, Download, Camera, RefreshCw, Monitor, FileText } from 'lucide-react';
+import { Plus, Trash2, Scale, Info, Wifi, WifiOff, Download, Camera, RefreshCw, Monitor, FileText, Lock } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
-import CartaPortePreview from './CartaPortePreview';
+import { usePermissions } from '../hooks/usePermissions';
 const API_BASE_URL = '';
+const STORAGE_KEY = 'balanza_user';
+
+// Helper para obtener headers con información del usuario
+const getAuthHeaders = (contentType = null) => {
+  const headers = {};
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const user = JSON.parse(stored);
+      if (user?.id) {
+        headers['x-user-id'] = user.id.toString();
+      }
+      if (user?.username) {
+        headers['x-username'] = user.username;
+      }
+    }
+  } catch {
+    // Ignorar errores
+  }
+
+  return headers;
+};
+
 const getWsUrl = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host; // Host incluye el puerto de Vite (5173 o túnel)
@@ -12,13 +39,13 @@ const WS_URL = getWsUrl();
 
 export default function PesadaForm() {
   const { isDark } = useThemeContext();
+  const { canEnterManualWeight, rol } = usePermissions();
 
   const [vehiculos, setVehiculos] = useState([]);
   const [choferes, setChoferes] = useState([]);
   const [productos, setProductos] = useState([]);
   const [productores, setProductores] = useState([]);
   const [transportes, setTransportes] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -42,9 +69,10 @@ export default function PesadaForm() {
     peso: '',
     nro_remito: '',
   });
+  const [archivoPDF, setArchivoPDF] = useState(null);
+  const fileInputRef = useRef(null);
 
   const [pesadas, setPesadas] = useState([]);
-  const [mostrarCartaPorte, setMostrarCartaPorte] = useState(false);
   // WebSocket connection
   useEffect(() => {
     const connectWS = () => {
@@ -102,12 +130,11 @@ export default function PesadaForm() {
         productos: `${API_BASE_URL}/api/productos`,
         productores: `${API_BASE_URL}/api/productores`,
         transportes: `${API_BASE_URL}/api/transportes`,
-        usuarios: `${API_BASE_URL}/api/usuarios`,
       };
 
       const keys = Object.keys(endpoints);
       const responses = await Promise.all(
-        Object.values(endpoints).map(url => fetch(url))
+        Object.values(endpoints).map(url => fetch(url, { headers: getAuthHeaders() }))
       );
 
       const failed = [];
@@ -137,14 +164,12 @@ export default function PesadaForm() {
       const pData = dataResults.productos;
       const prData = dataResults.productores;
       const tData = dataResults.transportes;
-      const uData = dataResults.usuarios;
 
       setVehiculos(vData.data || []);
       setChoferes(cData.data || []);
       setProductos(pData.data || []);
       setProductores(prData.data || []);
       setTransportes(tData.data || []);
-      setUsuarios(uData.data || []);
     } catch (error) {
       setMessage({ type: 'error', text: 'Error al cargar datos: ' + error.message });
     } finally {
@@ -154,10 +179,26 @@ export default function PesadaForm() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Bloqueo de seguridad adicional para entrada manual de peso
+    if (name === 'peso' && !canEnterManualWeight()) {
+      return;
+    }
+
     setFormData({
       ...formData,
       [name]: value,
     });
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      setArchivoPDF(file);
+    } else {
+      setArchivoPDF(null);
+      if (file) setMessage({ type: 'error', text: 'Solo se permiten archivos PDF' });
+    }
   };
 
   const capturarPeso = () => {
@@ -173,7 +214,9 @@ export default function PesadaForm() {
     try {
       setCamLoading(true);
       setCamStatus('capturing');
-      const res = await fetch(`${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}`);
+      const res = await fetch(`${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}`, {
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       if (data.status === 'ok') {
         setCamImages(data.archivos || []);
@@ -201,9 +244,23 @@ export default function PesadaForm() {
       return;
     }
 
+    // Verificar si el peso es manual (no viene de la balanza)
+    const pesoCapturado = balanzaPeso.toString();
+    const pesoIngresado = formData.peso.toString();
+    const esManual = pesoIngresado !== pesoCapturado && balanzaStatus === 'CONNECTED';
+
+    // Si es manual y no tiene permiso, mostrar error
+    if (esManual && !canEnterManualWeight) {
+      setMessage({
+        type: 'error',
+        text: 'No tiene permiso para cargar peso manualmente. Use el botón de captura o contacte al administrador.'
+      });
+      return;
+    }
+
     try {
       setLoading(true);
-      
+
       // Disparar captura de fotos asíncronamente mientras se procesa la pesada
       capturarFotos(formData.vehiculo_patente);
 
@@ -212,22 +269,26 @@ export default function PesadaForm() {
       const productor = productores.find(p => p.nombre === formData.productor_id || p.id == formData.productor_id);
       const transporte = transportes.find(t => t.nombre === formData.transporte_id || t.id == formData.transporte_id);
 
-      const payload = {
-        vehiculo_patente: formData.vehiculo_patente,
-        tipo,
-        peso: parseFloat(formData.peso),
-        chofer_id: chofer?.id || null,
-        producto_id: producto?.id || null,
-        productor_id: productor?.id || null,
-        transporte_id: transporte?.id || null,
-        balancero: formData.balancero,
-        nro_remito: formData.nro_remito
-      };
+      const dataToSend = new FormData();
+      dataToSend.append('vehiculo_patente', formData.vehiculo_patente);
+      dataToSend.append('tipo', tipo);
+      dataToSend.append('peso', parseFloat(formData.peso));
+      dataToSend.append('es_manual', esManual); // Indicar si es peso manual
+      if (chofer) dataToSend.append('chofer_id', chofer.id);
+      if (producto) dataToSend.append('producto_id', producto.id);
+      if (productor) dataToSend.append('productor_id', productor.id);
+      if (transporte) dataToSend.append('transporte_id', transporte.id);
+      if (formData.balancero) dataToSend.append('balancero', formData.balancero);
+      if (formData.nro_remito) dataToSend.append('nro_remito', formData.nro_remito);
+
+      if (archivoPDF) {
+        dataToSend.append('archivo', archivoPDF);
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/pesadas`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: getAuthHeaders(null), // FormData doesn't need Content-Type header
+        body: dataToSend
       });
 
       const data = await res.json();
@@ -235,6 +296,8 @@ export default function PesadaForm() {
 
       setMessage({ type: 'success', text: `Pesada ${tipo} registrada exitosamente` });
       setFormData({ ...formData, peso: '', nro_remito: '', balancero: '' });
+      setArchivoPDF(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
 
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -438,16 +501,28 @@ export default function PesadaForm() {
 
           {/* Input de Registro */}
           <div className="flex-1 w-full space-y-3">
-            <label className={`block text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>PESO PARA REGISTRO (kg) *</label>
+            <div className="flex items-center justify-between">
+              <label className={`block text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                PESO PARA REGISTRO (kg) *
+              </label>
+              {!canEnterManualWeight() && (
+                <span className={`text-xs flex items-center gap-1 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                  <Lock size={12} />
+                  Solo Subalancero/Admin puede editar
+                </span>
+              )}
+            </div>
             <input
               type="number"
               name="peso"
               value={formData.peso}
               onChange={handleInputChange}
               placeholder="0"
+              disabled={loading}
+              readOnly={!canEnterManualWeight()}
               className={`w-full px-8 py-6 text-5xl font-mono font-bold rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/30 transition-all ${
                 isDark ? 'bg-slate-950 border-slate-700 text-blue-400' : 'bg-white border-slate-300 text-blue-600'
-              }`}
+              } ${!canEnterManualWeight() ? 'cursor-not-allowed opacity-80' : ''}`}
             />
             <div className="flex gap-4">
               <button
@@ -465,15 +540,40 @@ export default function PesadaForm() {
                 TARA
               </button>
             </div>
-            <div className="mt-4">
-              <button
-                onClick={() => setMostrarCartaPorte(true)}
-                type="button"
-                className={`w-full px-8 py-4 ${isDark ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20' : 'bg-indigo-500 hover:bg-indigo-600 shadow-indigo-500/20'} text-white font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95`}
-              >
-                <FileText size={20} />
-                GENERAR CARTA PORTE
-              </button>
+
+            <div className="pt-2">
+              <label className={`block text-xs font-black uppercase mb-2 ${isDark ? 'text-blue-300/50' : 'text-blue-900/30'}`}>Anexar Carta de Porte (PDF)</label>
+              <div className="relative">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="application/pdf"
+                  className="hidden"
+                  id="pdf-upload"
+                />
+                <label
+                  htmlFor="pdf-upload"
+                  className={`flex items-center justify-center gap-3 px-6 py-4 rounded-2xl cursor-pointer border-2 border-dashed transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                    archivoPDF 
+                      ? 'bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/30' 
+                      : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-blue-500/50 hover:bg-blue-500/5' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:bg-blue-50'
+                  }`}
+                >
+                  {archivoPDF ? <FileText size={20} /> : <Plus size={20} />}
+                  <span className="font-bold">{archivoPDF ? archivoPDF.name : 'VINCULAR PDF DE CARTA PORTE'}</span>
+                </label>
+                {archivoPDF && (
+                  <button 
+                    onClick={(e) => { e.preventDefault(); setArchivoPDF(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="absolute -right-2 -top-2 p-2 bg-red-500 text-white rounded-full shadow-xl hover:bg-red-600 transition-all hover:scale-110 active:scale-90 z-10"
+                    title="Quitar archivo"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
             </div>
           </div>
         </div>
@@ -542,15 +642,6 @@ export default function PesadaForm() {
           <Info size={16} />
           El panel izquierdo muestra el peso en tiempo real de la balanza. Usa el botón azul para capturarlo y registrarlo.
         </div>
-      </div>
-
-      {mostrarCartaPorte && (
-        <CartaPortePreview 
-          formData={formData} 
-          balanzaPeso={balanzaPeso} 
-          onClose={() => setMostrarCartaPorte(false)} 
-        />
-      )}
     </div>
   );
 }

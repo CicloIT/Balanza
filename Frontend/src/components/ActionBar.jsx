@@ -1,13 +1,15 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
+import Guard from './Guard';
 
 export default function ActionBar({
   titulo,
   count,
   onAgregar,
   loading = false,
-  soloLectura = false
+  soloLectura = false,
+  permission = null
 }) {
   const { isDark } = useThemeContext();
 
@@ -28,17 +30,20 @@ export default function ActionBar({
           <span className={`text-lg ml-2 transition-colors duration-300 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{titulo}</span>
         </p>
       </div>
-      {!soloLectura && (
-        <button
-          onClick={onAgregar}
-          disabled={loading}
-          className={`flex items-center gap-2 px-6 py-3 bg-linear-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all font-semibold hover:scale-105 active:scale-95 ${
-            loading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          <Plus size={22} /> {loading ? 'Cargando...' : 'Agregar'}
-        </button>
-      )}
+
+      <Guard permissions={permission}>
+        {!soloLectura && (
+          <button
+            onClick={onAgregar}
+            disabled={loading}
+            className={`flex items-center gap-2 px-6 py-3 bg-linear-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:shadow-lg hover:shadow-green-500/50 transition-all font-semibold hover:scale-105 active:scale-95 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Plus size={22} /> {loading ? 'Cargando...' : 'Agregar'}
+          </button>
+        )}
+      </Guard>
     </div>
   );
 }

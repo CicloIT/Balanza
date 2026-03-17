@@ -144,6 +144,12 @@ if (!fs.existsSync(CAPTURAS_DIR)) {
 }
 app.use("/capturas", express.static(CAPTURAS_DIR));
 
+const DOCUMENTOS_DIR = path.join(__dirname, "documentos");
+if (!fs.existsSync(DOCUMENTOS_DIR)) {
+  fs.mkdirSync(DOCUMENTOS_DIR, { recursive: true });
+}
+app.use("/documentos", express.static(DOCUMENTOS_DIR));
+
 // Ruta de prueba
 app.get('/api/health', async (req, res) => {
   try {

@@ -1,8 +1,35 @@
 import { useState, useEffect } from 'react';
 
 const API_BASE_URL = '';
+const STORAGE_KEY = 'balanza_user';
 
-export function useGestionAPI(config) {
+// Helper para obtener headers con información del usuario
+const getAuthHeaders = (contentType = 'application/json') => {
+  const headers = {};
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+
+  // Obtener usuario del localStorage
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const user = JSON.parse(stored);
+      if (user?.id) {
+        headers['x-user-id'] = user.id.toString();
+      }
+      if (user?.username) {
+        headers['x-username'] = user.username;
+      }
+    }
+  } catch {
+    // Ignorar errores de parsing
+  }
+
+  return headers;
+};
+
+export function useGestionAPI(config, enabled = true) {
   const [items, setItems] = useState([]);
   const [modal, setModal] = useState({ abierto: false, item: null });
   const [formData, setFormData] = useState({});
@@ -10,18 +37,23 @@ export function useGestionAPI(config) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // Cargar datos al montar el componente
+  // Cargar datos al montar el componente (solo si está habilitado)
   useEffect(() => {
-    cargarItems();
-  }, [config.endpoint]);
+    if (enabled) {
+      cargarItems();
+    }
+  }, [config.endpoint, enabled]);
 
   const cargarItems = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}${config.endpoint}`);
+      const response = await fetch(`${API_BASE_URL}${config.endpoint}`, {
+        headers: getAuthHeaders(null), // Sin Content-Type para GET
+      });
       if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error: ${response.statusText}`);
       }
       const result = await response.json();
       setItems(result.data || []);
@@ -63,9 +95,7 @@ export function useGestionAPI(config) {
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData),
       });
 
@@ -111,6 +141,7 @@ export function useGestionAPI(config) {
     try {
       const response = await fetch(`${API_BASE_URL}${config.endpoint}/${id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(null),
       });
 
       if (!response.ok) {
@@ -138,9 +169,7 @@ export function useGestionAPI(config) {
       const nuevoEstado = !item.activo;
       const response = await fetch(`${API_BASE_URL}${config.endpoint}/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ ...item, activo: nuevoEstado }),
       });
 

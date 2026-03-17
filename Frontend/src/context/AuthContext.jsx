@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getRolePermissions, hasPermission } from '../config/rolesConfig';
 
 const AuthContext = createContext();
 
@@ -16,6 +17,17 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Obtener permisos del usuario basado en su rol
+  const userPermissions = user?.rol ? getRolePermissions(user.rol) : [];
+
+  /**
+   * Verifica si el usuario tiene un permiso específico
+   */
+  const checkPermission = useCallback((permission) => {
+    if (!user?.rol) return false;
+    return hasPermission(user.rol, permission);
+  }, [user?.rol]);
 
   const login = async (username, password) => {
     setLoading(true);
@@ -49,8 +61,22 @@ export function AuthProvider({ children }) {
     setError('');
   };
 
+  const value = {
+    user,
+    login,
+    logout,
+    loading,
+    error,
+    setError,
+    // Nuevas propiedades para permisos
+    rol: user?.rol,
+    permissions: userPermissions,
+    hasPermission: checkPermission,
+    isAdmin: user?.rol?.toLowerCase() === 'admin',
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, error, setError }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
