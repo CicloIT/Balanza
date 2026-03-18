@@ -1,0 +1,75 @@
+# Documentación Técnica - Balanza Pro
+
+Este documento detalla la arquitectura, las decisiones de diseño y la implementación técnica del sistema Balanza Pro para desarrolladores.
+
+---
+
+## 1. Stack Tecnológico
+*   **Frontend**: React 18+ (Vite), Tailwind CSS (estilado), Lucide React (iconografía).
+*   **Backend**: Node.js, Express.
+*   **Base de Datos**: PostgreSQL 15+.
+*   **Comunicación**: REST API (JSON) + WebSockets (para lectura en tiempo real de la balanza).
+
+---
+
+## 2. Arquitectura del Sistema
+
+### Frontend (`/Frontend`)
+Sigue una estructura modular:
+*   `src/components`: Componentes reutilizables (Tablas, Forms, UI Elements).
+*   `src/hooks`: Lógica de estado compartida. Destacan `useGestionAPI` (genérico) y `usePesadasInfinite` (especializado).
+*   `src/context`: Manejo de estados globales como `ThemeContext` (Dark/Light mode).
+*   `src/config`: Configuraciones de módulos y columnas de tablas.
+
+### Backend (`/Backend`)
+Arquitectura desacoplada en capas:
+*   `server.js`: Punto de entrada, configuración de Express y servidor WebSocket.
+*   `src/routes`: Definición de endpoints REST.
+*   `src/controllers`: Lógica de negocio y consultas SQL.
+*   `src/config/database.js`: Configuración del pool de conexiones a Postgres.
+
+---
+
+## 3. Implementaciones Clave
+
+### Sistema de Autorización (RBAC)
+El sistema utiliza un Control de Acceso Basado en Roles definido centralmente en `src/config/rolesConfig.js`.
+*   **Frontend**: El hook `usePermissions` filtra los módulos visibles y habilita/deshabilita botones de acción (Editar, Eliminar) según el rol.
+*   **Backend**: Las rutas están protegidas por el middleware `checkRole` que valida los permisos antes de ejecutar cualquier consulta SQL.
+
+### Carga Infinita (Infinite Scroll)
+Implementada para el módulo de Pesadas debido al alto volumen de datos.
+*   **Workflow**: El frontend pide fragmentos de 50 registros. El backend calcula el `OFFSET` y `LIMIT` dinámicamente.
+*   **Optimización**: Se utiliza `IntersectionObserver` con un sensor (sentinel) al final de la tabla. Se implementó un control de páginas (`loadedPagesSet`) para evitar peticiones redundantes y bucles infinitos.
+
+### Diseño Responsivo Adaptativo
+El sistema no solo cambia el tamaño, sino que cambia el **componente** según el dispositivo:
+*   **Desktop**: Renderiza una tabla HTML tradicional con scroll horizontal si es necesario.
+*   **Mobile (< 768px)**: Renderiza una lista de "Cards" (tarjetas) optimizadas para pantallas verticales.
+
+---
+
+## 4. Base de Datos
+Tablas principales:
+*   `usuario`: Credenciales y rol.
+*   `operacion_pesaje`: Encabezado de la operación de entrada/salida.
+*   `pesada`: Registros individuales de peso (Bruto, Tara, Neto) asociados a una operación.
+*   `chofer`, `producto`, `productor`, `transporte`, `vehiculo`: Tablas maestras de referencia.
+
+---
+
+## 5. Configuración y Despliegue
+### Variables de Entorno (.env)
+```env
+DB_USER=postgres
+DB_PASSWORD=xxx
+DB_HOST=localhost
+DB_NAME=balanza
+PORT=3000
+BALANZA_IP=127.0.0.1
+BALANZA_PORT=3000
+```
+
+### Ejecutar en Desarrollo
+1. Frontend: `npm install` -> `npm run dev`
+2. Backend: `npm install` -> `npm run dev`

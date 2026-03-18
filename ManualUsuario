@@ -1,0 +1,53 @@
+# Manual de Usuario - Balanza Pro
+
+Bienvenido a **Balanza Pro**, el sistema integral de gestión de pesajes diseñado para máxima eficiencia, control y profesionalismo. Este manual describe las funcionalidades del sistema de forma sencilla para el usuario final.
+
+---
+
+## 1. Introducción
+Balanza Pro es una solución moderna para el control de pesaje de vehículos en tiempo real. Permite gestionar no solo el peso, sino también toda la logística asociada (choferes, productos, transportes) con una interfaz rápida y fácil de usar en cualquier dispositivo.
+
+---
+
+## 2. Roles y Accesos (¿Quién hace qué?)
+El sistema cuenta con un control estricto de seguridad para que cada usuario vea solo lo que necesita:
+
+*   **Administrador**: Acceso total a todas las funciones y configuraciones.
+*   **Gerente**: Enfocado en la gestión administrativa. Puede ver estadísticas (Dashboard), gestionar maestros (choferes, productos, etc.) y generar reportes, pero **no realiza pesajes**.
+*   **Balancero**: Operador de la balanza. Puede realizar pesadas y ver el historial, pero **no puede ingresar el peso manualmente** (depende de la lectura automática de la balanza para mayor transparencia).
+*   **Subbalancero**: Operador con permisos extendidos. Puede realizar pesadas e **ingresar el peso manualmente** en caso de que la balanza no esté conectada o existan excepciones.
+
+---
+
+## 3. Módulos Principales
+
+### 📊 Dashboard
+Es la pantalla principal. Muestra gráficos de actividad, uso de flota y métricas clave para que la gerencia tome decisiones rápidas basadas en datos reales.
+
+### ⚖️ Gestión de Pesajes
+*   **Nueva Pesada**: El corazón del sistema. Permite registrar la entrada y salida de vehículos, asociando choferes, patentes, productos y productores. Soporta captura de peso automático.
+*   **Historial de Pesadas**: Una lista inteligente que carga miles de registros al instante. Incluye filtros rápidos y un buscador por patente.
+*   **Estado de Operación**: Indica si un pesaje está "Abierto" (falta la segunda pesada) o "Cerrado".
+
+### 📂 Maestros (Directorios)
+Centraliza la información para evitar errores de escritura:
+*   **Choferes**: Registro de conductores con nombre y apellido.
+*   **Productos y Productores**: Clasificación de lo que se pesa.
+*   **Transportes y Vehículos**: Control de la flota y empresas asociadas.
+
+### 📄 Reportes y Documentación
+*   **Generación de PDF**: Podés seleccionar múltiples pesadas del historial y generar un reporte profesional consolidado en un solo clic.
+*   **Cartas de Porte**: El sistema permite adjuntar y visualizar documentos PDF asociados a cada operación.
+
+---
+
+## 4. Diseño Responsivo y Móvil
+Balanza Pro está optimizado para usarse en:
+*   **Computadoras**: Menú profesional de dos niveles para acceso rápido.
+*   **Celulares y Tablets**: Las tablas de datos se transforman en "Tarjetas" fáciles de leer y el menú se convierte en un panel lateral deslizante (Hamburguesa).
+
+---
+
+## 5. Tecnología Inteligente
+*   **Carga Infinita**: No importa si tenés 100 o 10.000 pesadas; el sistema las carga de a poco a medida que bajás, manteniendo la aplicación siempre rápida y fluida.
+*   **Modo Oscuro/Claro**: Cambiá el tema visual según tu preferencia para mayor comodidad visual.

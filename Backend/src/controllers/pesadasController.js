@@ -173,6 +173,20 @@ export const updatePesada = async (req, res) => {
       return res.status(400).json({ success: false, error: 'El peso debe ser positivo' });
     }
 
+    // Si se intenta modificar el peso, verificar permiso de carga manual
+    if (peso !== undefined && peso !== null) {
+      const userRol = req.user?.rol;
+      if (!hasPermission(userRol, PERMISSIONS.PESAJE_MANUAL)) {
+        return res.status(403).json({
+          success: false,
+          error: 'No tiene permiso para modificar el peso manualmente.',
+          code: 'MANUAL_WEIGHT_FORBIDDEN',
+          requiredPermission: PERMISSIONS.PESAJE_MANUAL,
+          currentRole: userRol
+        });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE pesada SET 
        peso = COALESCE($1, peso),
@@ -256,35 +270,54 @@ export const deletePesada = async (req, res) => {
 
 export const getPesadasAgrupadas = async (req, res) => {
   try {
-    // Usamos la vista definida en el SQL si existe, o una consulta manual
+    const limit  = Math.min(parseInt(req.query.limit  ?? 20, 10), 100); // max 100 por página
+    const page   = Math.max(parseInt(req.query.page   ?? 1,  10), 1);
+    const offset = (page - 1) * limit;
+
+    // Total de operaciones (para saber si hay más páginas)
+    const countResult = await pool.query('SELECT COUNT(*) FROM operacion_pesaje');
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    console.log(`[API /pesadas/agrupadas] Req: Page=${page}, Limit=${limit}, Offset=${offset}`);
+    
     const result = await pool.query(`
-      SELECT op.id as id, op.id as operacion_id, op.vehiculo_patente, 
+      SELECT op.id as id, op.id as operacion_id, op.vehiculo_patente,
              MAX(CASE WHEN p.tipo::text = 'BRUTO' THEN p.peso END) as bruto,
-             MAX(CASE WHEN p.tipo::text = 'TARA' THEN p.peso END) as tara,
+             MAX(CASE WHEN p.tipo::text = 'TARA'  THEN p.peso END) as tara,
              MAX(p.neto) as neto,
              MIN(p.fecha_hora) as fecha_entrada,
              MAX(p.fecha_hora) as fecha_salida,
              op.abierta,
              MAX(c.apellido_nombre) as chofer,
-             MAX(prod.nombre) as producto,
-             MAX(ptr.nombre) as productor,
-             MAX(tr.nombre) as transporte,
-             MAX(p.balancero) as balancero,
-             MAX(p.nro_remito) as nro_remito,
-             MAX(p.ruta) as ruta
+             MAX(prod.nombre)       as producto,
+             MAX(ptr.nombre)        as productor,
+             MAX(tr.nombre)         as transporte,
+             MAX(p.balancero)       as balancero,
+             MAX(p.nro_remito)      as nro_remito,
+             MAX(p.ruta)            as ruta
       FROM operacion_pesaje op
-      LEFT JOIN pesada p ON op.id = p.operacion_id
-      LEFT JOIN chofer c ON p.chofer_id = c.id
-      LEFT JOIN producto prod ON p.producto_id = prod.id
-      LEFT JOIN productor ptr ON p.productor_id = ptr.id
-      LEFT JOIN transporte tr ON p.transporte_id = tr.id
+      LEFT JOIN pesada    p    ON op.id = p.operacion_id
+      LEFT JOIN chofer    c    ON p.chofer_id    = c.id
+      LEFT JOIN producto  prod ON p.producto_id  = prod.id
+      LEFT JOIN productor ptr  ON p.productor_id = ptr.id
+      LEFT JOIN transporte tr  ON p.transporte_id = tr.id
       GROUP BY op.id, op.vehiculo_patente, op.abierta
       ORDER BY op.id DESC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+    
+    const hasMore = (result.rows.length === limit) && (offset + result.rows.length < total);
+    console.log(`[API /pesadas/agrupadas] Result: Rows=${result.rows.length}, Total=${total}, hasMore=${hasMore}`);
+
+
     res.json({
       success: true,
-      data: result.rows,
-      count: result.rows.length,
+      data:    result.rows,
+      count:   result.rows.length,
+      total,
+      page,
+      limit,
+      hasMore,
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

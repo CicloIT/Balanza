@@ -6,6 +6,7 @@ import ModalForm from './components/ModalForm';
 import EmptyState from './components/EmptyState';
 import PesadaForm from './components/PesadaForm';
 import { useGestionAPI } from './hooks/useGestionAPI';
+import { usePesadasInfinite } from './hooks/usePesadasInfinite';
 import { useThemeContext } from './context/ThemeContext';
 import { usePermissions } from './hooks/usePermissions';
 import { choferesConfig } from './config/choferesConfig';
@@ -63,10 +64,10 @@ export default function GestionApp() {
   const productores = useGestionAPI(productoresConfig, hasModuleAccess(MODULES.PRODUCTORES));
   const productos = useGestionAPI(productosConfig, hasModuleAccess(MODULES.PRODUCTOS));
   const transportes = useGestionAPI(transportesConfig, hasModuleAccess(MODULES.TRANSPORTES));
-  const provincias = useGestionAPI(provinciasConfig, hasModuleAccess(MODULES.PROVINCIAS));
-  const localidades = useGestionAPI(localidadesConfig, hasModuleAccess(MODULES.LOCALIDADES));
+  const provincias = useGestionAPI(provinciasConfig, canEditModule(MODULES.PROVINCIAS));
+  const localidades = useGestionAPI(localidadesConfig, canEditModule(MODULES.LOCALIDADES));
   const vehiculos = useGestionAPI(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS));
-  const pesadas = useGestionAPI(pesadasConfig, hasModuleAccess(MODULES.PESADAS));
+  const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS);
 
   const [pesadasReporte, setPesadasReporte] = useState(null);
 
@@ -115,7 +116,7 @@ export default function GestionApp() {
   // Tabs filtrados según permisos del usuario
   const tabs = useMemo(() => {
     const allTabs = [
-      { id: MODULES.DASHBOARD, label: '📊 Dashboard', count: null },
+      { id: MODULES.DASHBOARD, label: 'Dashboard',     count: null },
       { id: MODULES.CHOFERES, label: choferesConfig.label, count: choferes.items.length },
       { id: MODULES.PRODUCTORES, label: productoresConfig.label, count: productores.items.length },
       { id: MODULES.PRODUCTOS, label: productosConfig.label, count: productos.items.length },
@@ -123,9 +124,9 @@ export default function GestionApp() {
       { id: MODULES.PROVINCIAS, label: provinciasConfig.label, count: provincias.items.length },
       { id: MODULES.LOCALIDADES, label: localidadesConfig.label, count: localidades.items.length },
       { id: MODULES.VEHICULOS, label: vehiculosConfig.label, count: vehiculos.items.length },
-      { id: MODULES.PESADA, label: '📟 Nueva Pesada', count: null },
+      { id: MODULES.PESADA, label: 'Nueva Pesada',    count: null },
       { id: MODULES.PESADAS, label: pesadasConfig.label, count: pesadas.items.length },
-      { id: MODULES.REPORTES, label: '📋 Reportes', count: null },
+      { id: MODULES.REPORTES, label: 'Reportes',       count: null },
     ];
 
     return allTabs.filter(tab => {
@@ -260,6 +261,9 @@ export default function GestionApp() {
                     onSubirPDF={handleSubirPDF}
                     onGenerarReporte={(items) => setPesadasReporte(items)}
                     soloLectura={activeTab === 'pesadas'}
+                    hasMore={currentGestion.hasMore}
+                    loadMore={currentGestion.loadMore}
+                    loadingMore={currentGestion.loadingMore}
                   />
                 </div>
               ) : (

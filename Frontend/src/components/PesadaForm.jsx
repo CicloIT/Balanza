@@ -250,7 +250,7 @@ export default function PesadaForm() {
     const esManual = pesoIngresado !== pesoCapturado && balanzaStatus === 'CONNECTED';
 
     // Si es manual y no tiene permiso, mostrar error
-    if (esManual && !canEnterManualWeight) {
+    if (esManual && !canEnterManualWeight()) {
       setMessage({
         type: 'error',
         text: 'No tiene permiso para cargar peso manualmente. Use el botón de captura o contacte al administrador.'
