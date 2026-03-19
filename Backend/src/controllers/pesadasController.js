@@ -323,3 +323,35 @@ export const getPesadasAgrupadas = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+export const getPesadaActivaByPatente = async (req, res) => {
+  try {
+    const { patente } = req.params;
+    const result = await pool.query(`
+      SELECT 
+        p.*,
+        c.apellido_nombre  AS chofer_nombre,
+        prod.nombre        AS producto_nombre,
+        ptr.nombre         AS productor_nombre,
+        tr.nombre          AS transporte_nombre
+      FROM pesada p
+      JOIN operacion_pesaje op ON p.operacion_id = op.id
+      LEFT JOIN chofer    c   ON p.chofer_id    = c.id
+      LEFT JOIN producto  prod ON p.producto_id  = prod.id
+      LEFT JOIN productor ptr  ON p.productor_id = ptr.id
+      LEFT JOIN transporte tr  ON p.transporte_id = tr.id
+      WHERE op.vehiculo_patente = $1 
+      AND op.abierta = true
+      ORDER BY p.fecha_hora DESC
+      LIMIT 1
+    `, [patente]);
+
+    if (result.rows.length === 0) {
+      return res.json({ success: true, data: null });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

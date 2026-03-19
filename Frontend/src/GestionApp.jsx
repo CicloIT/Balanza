@@ -189,7 +189,7 @@ export default function GestionApp() {
         )}
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-50">
         <Header activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
       </div>
 

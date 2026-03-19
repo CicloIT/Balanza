@@ -39,22 +39,20 @@ function RenderCelda({ item, keyName, isDark }) {
   if (keyName === 'estado') {
     const isActivo = value === 'activo' || value === true || value === 'true';
     return (
-      <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${
-        isActivo
-          ? isDark ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700'
-          : isDark ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700'
-      }`}>
+      <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${isActivo
+        ? isDark ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700'
+        : isDark ? 'bg-red-500/30 text-red-300' : 'bg-red-100 text-red-700'
+        }`}>
         {isActivo ? 'Activo' : 'Inactivo'}
       </span>
     );
   }
 
   if (keyName === 'abierta') return (
-    <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${
-      value
-        ? isDark ? 'bg-yellow-500/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
-        : isDark ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700'
-    }`}>
+    <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${value
+      ? isDark ? 'bg-yellow-500/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
+      : isDark ? 'bg-green-500/30 text-green-300' : 'bg-green-100 text-green-700'
+      }`}>
       {value ? 'En Proceso' : 'Completada'}
     </span>
   );
@@ -92,11 +90,10 @@ function AccionesPesada({ item, isDark, onSubirPDF }) {
           href={item.ruta.startsWith('documentos/') ? `/${item.ruta}` : `/documentos/${item.ruta}`}
           target="_blank" rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${
-            isDark
-              ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/40'
-              : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-          }`}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${isDark
+            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/40'
+            : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+            }`}
         >
           <FileText size={14} /> Carta Porte
         </a>
@@ -104,11 +101,10 @@ function AccionesPesada({ item, isDark, onSubirPDF }) {
         <Guard permissions="pesaje:update">
           <label
             onClick={e => e.stopPropagation()}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${
-              isDark
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/40'
-                : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-            }`}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${isDark
+              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/40'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+              }`}
           >
             <Upload size={14} /> Subir PDF
             <input type="file" className="hidden" accept="application/pdf"
@@ -128,11 +124,10 @@ const FilaTabla = React.memo(({
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
   return (
-    <tr className={`transition-all duration-150 ${
-      selected
-        ? isDark ? 'bg-indigo-500/10 border-b border-indigo-500/20' : 'bg-indigo-50 border-b border-indigo-100'
-        : isDark ? 'border-b border-white/5 hover:bg-white/10' : 'border-b border-slate-100 hover:bg-slate-50'
-    }`} style={{ animation: idx < 80 ? `fadeInRow 0.25s ease-out ${idx * 0.04}s both` : 'none' }}>
+    <tr className={`transition-all duration-150 ${selected
+      ? isDark ? 'bg-indigo-500/10 border-b border-indigo-500/20' : 'bg-indigo-50 border-b border-indigo-100'
+      : isDark ? 'border-b border-white/5 hover:bg-white/10' : 'border-b border-slate-100 hover:bg-slate-50'
+      }`} style={{ animation: idx < 80 ? `fadeInRow 0.25s ease-out ${idx * 0.04}s both` : 'none' }}>
 
       {tipo === 'pesadas' && (
         <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
@@ -157,11 +152,10 @@ const FilaTabla = React.memo(({
               <>
                 <Guard permissions={`${resourcePrefix}:update`}>
                   <button onClick={() => onToggleEstado(item.id)}
-                    className={`p-1.5 rounded-lg transition-all hover:scale-110 ${
-                      item.estado === 'activo'
-                        ? isDark ? 'bg-green-500/30 text-green-400 hover:bg-green-500/50' : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
-                    }`} title={item.estado === 'activo' ? 'Desactivar' : 'Activar'}>
+                    className={`p-1.5 rounded-lg transition-all hover:scale-110 ${item.estado === 'activo'
+                      ? isDark ? 'bg-green-500/30 text-green-400 hover:bg-green-500/50' : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      : isDark ? 'bg-red-500/30 text-red-400 hover:bg-red-500/50' : 'bg-red-100 text-red-700 hover:bg-red-200'
+                      }`} title={item.estado === 'activo' ? 'Desactivar' : 'Activar'}>
                     {item.estado === 'activo' ? <Eye size={15} /> : <EyeOff size={15} />}
                   </button>
                 </Guard>
@@ -200,11 +194,10 @@ function CardItem({
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
   return (
     <div
-      className={`rounded-xl border p-4 transition-all duration-200 ${
-        selected
-          ? isDark ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'
-          : isDark ? 'bg-white/5 border-white/8 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-slate-50'
-      }`}
+      className={`rounded-xl border p-4 transition-all duration-200 ${selected
+        ? isDark ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'
+        : isDark ? 'bg-white/5 border-white/8 hover:bg-white/10' : 'bg-white border-slate-200 hover:bg-slate-50'
+        }`}
       style={{ animation: idx < 40 ? `fadeInRow 0.25s ease-out ${idx * 0.05}s both` : 'none' }}
     >
       {/* Card header: checkbox + first 2 key values */}
@@ -265,11 +258,10 @@ function CardItem({
             <>
               <Guard permissions={`${resourcePrefix}:update`}>
                 <button onClick={() => onToggleEstado(item.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 ${
-                    item.estado === 'activo'
-                      ? isDark ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200'
-                      : isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-200'
-                  }`}>
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 ${item.estado === 'activo'
+                    ? isDark ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-100 text-green-700 border border-green-200'
+                    : isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-200'
+                    }`}>
                   {item.estado === 'activo' ? <><Eye size={13} /> Activo</> : <><EyeOff size={13} /> Inactivo</>}
                 </button>
               </Guard>
@@ -402,13 +394,12 @@ export default function TablaItems({
           <button
             onClick={handleGenerarReporte}
             disabled={!algunaSeleccionada || reporteEnProceso.current}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${
-              algunaSeleccionada && !reporteEnProceso.current
-                ? isDark
-                  ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/40 cursor-pointer'
-                  : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
-                : 'opacity-30 cursor-not-allowed ' + (isDark ? 'bg-slate-700 border-slate-600 text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-400')
-            }`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${algunaSeleccionada && !reporteEnProceso.current
+              ? isDark
+                ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/40 cursor-pointer'
+                : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
+              : 'opacity-30 cursor-not-allowed ' + (isDark ? 'bg-slate-700 border-slate-600 text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-400')
+              }`}
           >
             <FileText size={14} />
             {reporteEnProceso.current ? 'Generando…' : 'Reporte'}

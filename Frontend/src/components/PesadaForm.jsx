@@ -58,6 +58,7 @@ export default function PesadaForm() {
   const [camLoading, setCamLoading] = useState(false);
   const [camImages, setCamImages] = useState([]);
   const [camStatus, setCamStatus] = useState(null);
+  const [activeChannels, setActiveChannels] = useState([1, 2, 3]); // Fallback inicial
 
   const [formData, setFormData] = useState({
     vehiculo_patente: '',
@@ -116,10 +117,62 @@ export default function PesadaForm() {
     };
   }, []);
 
+  // Autocomplete para TARA basado en operación abierta por patente
+  useEffect(() => {
+    const patente = formData.vehiculo_patente;
+    if (patente && patente.length >= 6) {
+      const fetchActiva = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/pesadas/activa/${encodeURIComponent(patente)}`, {
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            const p = data.data;
+            setFormData(prev => ({
+              ...prev,
+              chofer_id: p.chofer_nombre || p.chofer_id || prev.chofer_id,
+              producto_id: p.producto_nombre || p.producto_id || prev.producto_id,
+              productor_id: p.productor_nombre || p.productor_id || prev.productor_id,
+              transporte_id: p.transporte_nombre || p.transporte_id || prev.transporte_id,
+              nro_remito: p.nro_remito || prev.nro_remito,
+              balancero: p.balancero || prev.balancero,
+            }));
+            setMessage({
+              type: 'success',
+              text: `Datos recuperados de la pesada de BRUTO (${p.chofer_nombre || 'S/D'})`
+            });
+            setTimeout(() => setMessage(null), 3000);
+          }
+        } catch (e) {
+          console.error('Error fetching active pesada:', e);
+        }
+      };
+
+      const timeout = setTimeout(fetchActiva, 600);
+      return () => clearTimeout(timeout);
+    }
+  }, [formData.vehiculo_patente]);
+
   // Cargar datos en montaje
   useEffect(() => {
     cargarDatos();
+    cargarConfigCamaras();
   }, []);
+
+  const cargarConfigCamaras = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/camaras/config`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && data.canales) {
+        setActiveChannels(data.canales);
+      }
+    } catch (e) {
+      console.error('Error cargando config de cámaras:', e);
+    }
+  };
 
   const cargarDatos = async () => {
     try {
@@ -179,7 +232,7 @@ export default function PesadaForm() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Bloqueo de seguridad adicional para entrada manual de peso
     if (name === 'peso' && !canEnterManualWeight()) {
       return;
@@ -321,7 +374,7 @@ export default function PesadaForm() {
         ? 'bg-slate-800/50 border border-slate-700'
         : 'bg-white/80 border border-slate-200'
         }`}>
-        
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-blue-500 rounded-xl shadow-lg shadow-blue-500/20">
@@ -330,11 +383,10 @@ export default function PesadaForm() {
             <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Operación de Pesaje</h3>
           </div>
 
-          <div className={`flex items-center gap-3 px-4 py-2 rounded-full border ${
-            balanzaStatus === 'CONNECTED'
-              ? isDark ? 'bg-green-500/10 border-green-500/50 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
-              : isDark ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
-          }`}>
+          <div className={`flex items-center gap-3 px-4 py-2 rounded-full border ${balanzaStatus === 'CONNECTED'
+            ? isDark ? 'bg-green-500/10 border-green-500/50 text-green-400' : 'bg-green-50 border-green-200 text-green-700'
+            : isDark ? 'bg-red-500/10 border-red-500/50 text-red-400' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
             {balanzaStatus === 'CONNECTED' ? <Wifi size={18} /> : <WifiOff size={18} />}
             <span className="text-sm font-bold">BALANZA: {balanzaStatus === 'CONNECTED' ? 'CONECTADA' : 'DESCONECTADA'}</span>
           </div>
@@ -456,10 +508,9 @@ export default function PesadaForm() {
         </div>
 
         {/* Captura de Peso */}
-        <div className={`p-8 rounded-3xl mb-8 flex flex-col lg:flex-row items-center gap-8 ${
-          isDark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'
-        }`}>
-          
+        <div className={`p-8 rounded-3xl mb-8 flex flex-col lg:flex-row items-center gap-8 ${isDark ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-blue-50 border border-blue-100'
+          }`}>
+
           {/* Display Balanza en Tiempo Real */}
           <div className="flex-1 w-full space-y-3">
             <div className="flex items-center justify-between">
@@ -469,20 +520,18 @@ export default function PesadaForm() {
                 {balanzaStatus === 'CONNECTED' ? 'LIVE' : 'OFFLINE'}
               </div>
             </div>
-            <div className={`relative group px-8 py-6 rounded-2xl flex items-center justify-center min-h-[120px] transition-all ${
-              isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-            }`}>
-              <span className={`text-6xl md:text-7xl font-mono font-black ${
-                balanzaStatus === 'CONNECTED' 
+            <div className={`relative group px-8 py-6 rounded-2xl flex items-center justify-center min-h-[120px] transition-all ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+              }`}>
+              <span className={`text-6xl md:text-7xl font-mono font-black ${balanzaStatus === 'CONNECTED'
                 ? isDark ? 'text-blue-400' : 'text-blue-600'
                 : 'text-slate-400 opacity-50'
-              }`}>
+                }`}>
                 {balanzaPeso.toLocaleString()}
                 <span className="text-2xl ml-2">kg</span>
               </span>
-              
+
               {balanzaStatus === 'CONNECTED' && (
-                <button 
+                <button
                   onClick={capturarPeso}
                   title="Capturar este peso"
                   className="absolute -right-3 -top-3 p-4 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 transition-all hover:scale-110 active:scale-95 group-hover:rotate-6"
@@ -494,9 +543,9 @@ export default function PesadaForm() {
           </div>
 
           <div className="hidden lg:flex flex-col items-center">
-             <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
-             <div className="my-2 text-blue-500/50 italic text-xs">Capturar</div>
-             <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
+            <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
+            <div className="my-2 text-blue-500/50 italic text-xs">Capturar</div>
+            <div className="w-1 h-32 bg-blue-500/20 rounded-full"></div>
           </div>
 
           {/* Input de Registro */}
@@ -520,9 +569,8 @@ export default function PesadaForm() {
               placeholder="0"
               disabled={loading}
               readOnly={!canEnterManualWeight()}
-              className={`w-full px-8 py-6 text-5xl font-mono font-bold rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/30 transition-all ${
-                isDark ? 'bg-slate-950 border-slate-700 text-blue-400' : 'bg-white border-slate-300 text-blue-600'
-              } ${!canEnterManualWeight() ? 'cursor-not-allowed opacity-80' : ''}`}
+              className={`w-full px-8 py-6 text-5xl font-mono font-bold rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/30 transition-all ${isDark ? 'bg-slate-950 border-slate-700 text-blue-400' : 'bg-white border-slate-300 text-blue-600'
+                } ${!canEnterManualWeight() ? 'cursor-not-allowed opacity-80' : ''}`}
             />
             <div className="flex gap-4">
               <button
@@ -554,17 +602,16 @@ export default function PesadaForm() {
                 />
                 <label
                   htmlFor="pdf-upload"
-                  className={`flex items-center justify-center gap-3 px-6 py-4 rounded-2xl cursor-pointer border-2 border-dashed transition-all hover:scale-[1.02] active:scale-[0.98] ${
-                    archivoPDF 
-                      ? 'bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/30' 
-                      : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-blue-500/50 hover:bg-blue-500/5' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:bg-blue-50'
-                  }`}
+                  className={`flex items-center justify-center gap-3 px-6 py-4 rounded-2xl cursor-pointer border-2 border-dashed transition-all hover:scale-[1.02] active:scale-[0.98] ${archivoPDF
+                    ? 'bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/30'
+                    : isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:border-blue-500/50 hover:bg-blue-500/5' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400 hover:bg-blue-50'
+                    }`}
                 >
                   {archivoPDF ? <FileText size={20} /> : <Plus size={20} />}
                   <span className="font-bold">{archivoPDF ? archivoPDF.name : 'VINCULAR PDF DE CARTA PORTE'}</span>
                 </label>
                 {archivoPDF && (
-                  <button 
+                  <button
                     onClick={(e) => { e.preventDefault(); setArchivoPDF(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                     className="absolute -right-2 -top-2 p-2 bg-red-500 text-white rounded-full shadow-xl hover:bg-red-600 transition-all hover:scale-110 active:scale-90 z-10"
                     title="Quitar archivo"
@@ -574,44 +621,44 @@ export default function PesadaForm() {
                 )}
               </div>
             </div>
-            </div>
           </div>
         </div>
+      </div>
 
-        {/* Registro Visual (Cámaras) */}
-        <div className={`p-8 rounded-3xl mb-8 border transition-all ${
-          isDark ? 'bg-slate-900/40 border-slate-700' : 'bg-slate-50 border-slate-200'
+      {/* Registro Visual (Cámaras) */}
+      <div className={`p-8 rounded-3xl mb-8 border transition-all ${isDark ? 'bg-slate-900/40 border-slate-700' : 'bg-slate-50 border-slate-200'
         }`}>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Camera className="text-blue-500" size={20} />
-              <h4 className={`text-lg font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Registro Visual Automático</h4>
-            </div>
-
-            {camStatus === 'capturing' && (
-              <div className="flex items-center gap-2 text-blue-500 animate-pulse">
-                <RefreshCw className="animate-spin" size={16} />
-                <span className="text-sm font-bold">CAPTURANDO...</span>
-              </div>
-            )}
-            {camStatus === 'success' && (
-              <div className="text-green-500 text-sm font-bold">✅ CAPTURADO</div>
-            )}
-            {camStatus === 'error' && (
-              <div className="text-red-500 text-sm font-bold">❌ ERROR NVR</div>
-            )}
-
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Camera className="text-blue-500" size={20} />
+            <h4 className={`text-lg font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Registro Visual Automático</h4>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2].map((ch, i) => (
-              <div key={ch} className={`aspect-video rounded-2xl overflow-hidden relative border ${
-                isDark ? 'bg-slate-950 border-white/5' : 'bg-white border-slate-300'
-              }`}>
-                {camImages[i] ? (
-                  <img 
-                    src={`${API_BASE_URL}/capturas/${camImages[i]}`} 
-                    alt={`Cámara ${ch}`} 
+          {camStatus === 'capturing' && (
+            <div className="flex items-center gap-2 text-blue-500 animate-pulse">
+              <RefreshCw className="animate-spin" size={16} />
+              <span className="text-sm font-bold">CAPTURANDO...</span>
+            </div>
+          )}
+          {camStatus === 'success' && (
+            <div className="text-green-500 text-sm font-bold">✅ CAPTURADO</div>
+          )}
+          {camStatus === 'error' && (
+            <div className="text-red-500 text-sm font-bold">❌ ERROR NVR</div>
+          )}
+
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {activeChannels.map((ch) => {
+            const imgPath = camImages.find(img => img.includes(`_cam${ch}_`));
+            return (
+              <div key={ch} className={`aspect-video rounded-2xl overflow-hidden relative border ${isDark ? 'bg-slate-950 border-white/5' : 'bg-white border-slate-300'
+                }`}>
+                {imgPath ? (
+                  <img
+                    src={`${API_BASE_URL}/capturas/${imgPath}`}
+                    alt={`Cámara ${ch}`}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -624,24 +671,25 @@ export default function PesadaForm() {
                   CAM 0{ch}
                 </div>
               </div>
-            ))}
-            
-            {/* Info help */}
-            <div className="md:col-span-2 flex items-center gap-4 px-6 rounded-2xl border border-dashed border-slate-500/20">
-              <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
-                <Info size={20} />
-              </div>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Las capturas se guardan automáticamente en el servidor y quedan vinculadas al registro del pesaje actual.
-              </p>
+            );
+          })}
+
+          {/* Info help */}
+          <div className={`${activeChannels.length > 2 ? 'md:col-span-2' : 'md:col-span-1'} flex items-center gap-4 px-6 rounded-2xl border border-dashed border-slate-500/20`}>
+            <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
+              <Info size={20} />
             </div>
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Las capturas se guardan automáticamente en el servidor y quedan vinculadas al registro del pesaje actual.
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex items-center gap-2 text-sm text-slate-500 italic">
-          <Info size={16} />
-          El panel izquierdo muestra el peso en tiempo real de la balanza. Usa el botón azul para capturarlo y registrarlo.
-        </div>
+      <div className="mt-6 flex items-center gap-2 text-sm text-slate-500 italic">
+        <Info size={16} />
+        El panel izquierdo muestra el peso en tiempo real de la balanza. Usa el botón azul para capturarlo y registrarlo.
+      </div>
     </div>
   );
 }

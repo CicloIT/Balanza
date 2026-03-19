@@ -8,6 +8,7 @@ import {
   deletePesada,
   getPesadasAgrupadas,
   updatePdfByOperacion,
+  getPesadaActivaByPatente,
 } from '../controllers/pesadasController.js';
 import { requireAuth, requirePermission, optionalAuth } from '../middleware/authMiddleware.js';
 import { PERMISSIONS } from '../config/rolesConfig.js';
@@ -47,6 +48,7 @@ const router = express.Router();
 router.get('/', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), getPesadas);
 router.get('/agrupadas', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), getPesadasAgrupadas);
 router.get('/ticket/:ticketId', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), getPesadasByTicket);
+router.get('/activa/:patente', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), getPesadaActivaByPatente);
 router.get('/:id', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), getPesadaById);
 
 // Rutas de escritura (requieren autenticación y permisos específicos)
