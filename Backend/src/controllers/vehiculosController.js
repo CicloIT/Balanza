@@ -2,16 +2,32 @@ import pool from '../config/database.js';
 
 export const getVehiculos = async (req, res) => {
   try {
+    const limit  = Math.min(parseInt(req.query.limit  ?? 50, 10), 100);
+    const page   = Math.max(parseInt(req.query.page   ?? 1,  10), 1);
+    const offset = (page - 1) * limit;
+
+    // Total de vehículos activos
+    const countResult = await pool.query('SELECT COUNT(*) FROM vehiculo WHERE activo = true');
+    const total = parseInt(countResult.rows[0].count, 10);
+
     const result = await pool.query(`
       SELECT v.id, v.patente, v.patente_acoplado, v.tipo_vehiculo, v.activo, v.observaciones, v.created_at
       FROM vehiculo v
       WHERE v.activo = true
       ORDER BY v.patente ASC
-    `);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const hasMore = (result.rows.length === limit) && (offset + result.rows.length < total);
+
     res.json({
       success: true,
       data: result.rows,
       count: result.rows.length,
+      total,
+      page,
+      limit,
+      hasMore
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

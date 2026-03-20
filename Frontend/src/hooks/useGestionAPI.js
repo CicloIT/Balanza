@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const API_BASE_URL = '';
 const STORAGE_KEY = 'balanza_user';
@@ -37,14 +37,7 @@ export function useGestionAPI(config, enabled = true) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // Cargar datos al montar el componente (solo si está habilitado)
-  useEffect(() => {
-    if (enabled) {
-      cargarItems();
-    }
-  }, [config.endpoint, enabled]);
-
-  const cargarItems = async () => {
+  const cargarItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -63,9 +56,16 @@ export function useGestionAPI(config, enabled = true) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [config.endpoint]);
 
-  const abrirModal = (item = null) => {
+  // Cargar datos al montar el componente (solo si está habilitado)
+  useEffect(() => {
+    if (enabled) {
+      cargarItems();
+    }
+  }, [cargarItems, enabled]);
+
+  const abrirModal = useCallback((item = null) => {
     setModal({ abierto: true, item });
     if (item) {
       setFormData(item);
@@ -74,14 +74,18 @@ export function useGestionAPI(config, enabled = true) {
     }
     setError(null);
     setSuccess(null);
-  };
+  }, []);
 
-  const cerrarModal = () => {
+  const cerrarModal = useCallback(() => {
     setModal({ abierto: false, item: null });
     setFormData({});
     setError(null);
     setSuccess(null);
-  };
+  }, []);
+
+  const handleFormChange = useCallback((campo, valor) => {
+    setFormData(prev => ({ ...prev, [campo]: valor }));
+  }, []);
 
   const guardarItem = async () => {
     setLoading(true);
@@ -108,7 +112,7 @@ export function useGestionAPI(config, enabled = true) {
       
       if (modal.item) {
         // Editar
-        setItems(items.map(item => 
+        setItems(items => items.map(item => 
           item.id === modal.item.id 
             ? result.data
             : item
@@ -116,7 +120,7 @@ export function useGestionAPI(config, enabled = true) {
         setSuccess('Elemento actualizado correctamente');
       } else {
         // Crear
-        setItems([...items, result.data]);
+        setItems(items => [...items, result.data]);
         setSuccess('Elemento creado correctamente');
       }
       
@@ -131,7 +135,7 @@ export function useGestionAPI(config, enabled = true) {
     }
   };
 
-  const eliminarItem = async (id) => {
+  const eliminarItem = useCallback(async (id) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este elemento?')) {
       return;
     }
@@ -149,7 +153,7 @@ export function useGestionAPI(config, enabled = true) {
         throw new Error(errorData.error || `Error: ${response.statusText}`);
       }
 
-      setItems(items.filter(item => item.id !== id));
+      setItems(items => items.filter(item => item.id !== id));
       setSuccess('Elemento eliminado correctamente');
     } catch (err) {
       setError(err.message);
@@ -157,41 +161,44 @@ export function useGestionAPI(config, enabled = true) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [config.endpoint]);
 
-  const toggleEstado = async (id) => {
-    const item = items.find(i => i.id === id);
-    if (!item) return;
+  const toggleEstado = useCallback(async (id) => {
+    // Necesitamos el item actual. Lo buscamos en la función de actualización de estado para evitar refrescos circulares
+    setItems(currentItems => {
+      const item = currentItems.find(i => i.id === id);
+      if (!item) return currentItems;
 
-    setLoading(true);
-    setError(null);
-    try {
-      const nuevoEstado = !item.activo;
-      const response = await fetch(`${API_BASE_URL}${config.endpoint}/${id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ ...item, activo: nuevoEstado }),
-      });
+      (async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const nuevoEstado = !item.activo;
+          const response = await fetch(`${API_BASE_URL}${config.endpoint}/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ ...item, activo: nuevoEstado }),
+          });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Error: ${response.statusText}`);
-      }
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error: ${response.statusText}`);
+          }
 
-      const result = await response.json();
-      setItems(items.map(i => i.id === id ? result.data : i));
-      setSuccess(`Elemento ${nuevoEstado ? 'activado' : 'desactivado'} correctamente`);
-    } catch (err) {
-      setError(err.message);
-      console.error('Error cambiando estado:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFormChange = (campo, valor) => {
-    setFormData({ ...formData, [campo]: valor });
-  };
+          const result = await response.json();
+          setItems(items => items.map(i => i.id === id ? result.data : i));
+          setSuccess(`Elemento ${nuevoEstado ? 'activado' : 'desactivado'} correctamente`);
+        } catch (err) {
+          setError(err.message);
+          console.error('Error cambiando estado:', err);
+        } finally {
+          setLoading(false);
+        }
+      })();
+      
+      return currentItems;
+    });
+  }, [config.endpoint]);
 
   return {
     items,

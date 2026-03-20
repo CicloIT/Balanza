@@ -7,6 +7,7 @@ import EmptyState from './components/EmptyState';
 import PesadaForm from './components/PesadaForm';
 import { useGestionAPI } from './hooks/useGestionAPI';
 import { usePesadasInfinite } from './hooks/usePesadasInfinite';
+import { useVehiculosInfinite } from './hooks/useVehiculosInfinite';
 import { useThemeContext } from './context/ThemeContext';
 import { usePermissions } from './hooks/usePermissions';
 import { choferesConfig } from './config/choferesConfig';
@@ -66,7 +67,7 @@ export default function GestionApp() {
   const transportes = useGestionAPI(transportesConfig, hasModuleAccess(MODULES.TRANSPORTES));
   const provincias = useGestionAPI(provinciasConfig, canEditModule(MODULES.PROVINCIAS));
   const localidades = useGestionAPI(localidadesConfig, canEditModule(MODULES.LOCALIDADES));
-  const vehiculos = useGestionAPI(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS));
+  const vehiculos = useVehiculosInfinite(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS));
   const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS);
 
   const [pesadasReporte, setPesadasReporte] = useState(null);
@@ -255,11 +256,11 @@ export default function GestionApp() {
                     tipo={activeTab}
                     columnasKeys={currentConfig.columnasKeys}
                     columnasLabels={currentConfig.columnasLabels}
-                    onEditar={(item) => currentGestion.abrirModal(item)}
-                    onEliminar={(id) => currentGestion.eliminarItem(id)}
-                    onToggleEstado={(id) => currentGestion.toggleEstado(id)}
+                    onEditar={currentGestion.abrirModal}
+                    onEliminar={currentGestion.eliminarItem}
+                    onToggleEstado={currentGestion.toggleEstado}
                     onSubirPDF={handleSubirPDF}
-                    onGenerarReporte={(items) => setPesadasReporte(items)}
+                    onGenerarReporte={setPesadasReporte}
                     soloLectura={activeTab === 'pesadas'}
                     hasMore={currentGestion.hasMore}
                     loadMore={currentGestion.loadMore}

@@ -186,11 +186,11 @@ const FilaTabla = React.memo(({
 });
 
 /* ─── Mobile card ───────────────────────────────────────────────────────── */
-function CardItem({
+const CardItem = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
   onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF,
   soloLectura, mostrarColumnaAcciones,
-}) {
+}) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
   return (
     <div
@@ -286,15 +286,15 @@ function CardItem({
       )}
     </div>
   );
-}
+});
 
 /* ─── Main component ────────────────────────────────────────────────────── */
-export default function TablaItems({
+const TablaItems = React.memo(({
   items, tipo, columnasKeys, columnasLabels,
   onEditar, onEliminar, onToggleEstado, onSubirPDF,
   onGenerarReporte, soloLectura = false,
-  hasMore, loadMore, loadingMore // <--- Added these
-}) {
+  hasMore, loadMore, loadingMore
+}) => {
   const { isDark } = useThemeContext();
   const [seleccionadas, setSeleccionadas] = useState(new Set());
   const reporteEnProceso = useRef(false);
@@ -346,7 +346,7 @@ export default function TablaItems({
   const observerTarget = useRef(null);
 
   React.useEffect(() => {
-    if (!hasMore || !loadMore || tipo !== 'pesadas') return;
+    if (!hasMore || !loadMore || (tipo !== 'pesadas' && tipo !== 'vehiculos')) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -354,7 +354,7 @@ export default function TablaItems({
           loadMore();
         }
       },
-      { threshold: 0.1 } // Menos agresivo que 1.0 (trigger cuando asoma un 10%)
+      { threshold: 0.1 }
     );
 
     if (observerTarget.current) {
@@ -416,7 +416,7 @@ export default function TablaItems({
 
       {/* ── DESKTOP: table (md+) ── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-max">
+        <table className="w-full min-max">
           <thead>
             <tr className={`${isDark ? 'border-b border-white/10 bg-white/5' : 'border-b border-slate-200 bg-slate-50'}`}>
               {tipo === 'pesadas' && <th className="px-3 py-3 w-8" />}
@@ -441,13 +441,13 @@ export default function TablaItems({
       </div>
 
       {/* Sentinel and Loading Indicators */}
-      {tipo === 'pesadas' && (
+      {(tipo === 'pesadas' || tipo === 'vehiculos') && (
         <div ref={observerTarget} className="py-8 flex flex-col items-center justify-center gap-3">
           {loadingMore && (
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
               <span className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Cargando más pesadas...
+                Cargando más {tipo === 'pesadas' ? 'pesadas' : 'vehículos'}...
               </span>
             </div>
           )}
@@ -467,4 +467,6 @@ export default function TablaItems({
       `}</style>
     </div>
   );
-}
+});
+
+export default TablaItems;
