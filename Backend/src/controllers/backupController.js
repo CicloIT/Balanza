@@ -16,8 +16,42 @@ const BACKUP_DIR = path.join(ROOT_DIR, 'backups');
 const CAPTURAS_DIR = path.join(ROOT_DIR, 'capturas');
 const DOCUMENTOS_DIR = path.join(__dirname, '../documentos');
 
-// Ruta a pg_dump
-const PG_DUMP_PATH = `"C:\\Program Files\\PostgreSQL\\18\\bin\\pg_dump.exe"`;
+// Ruta a pg_dump - detectar automáticamente
+let PG_DUMP_PATH = process.env.PG_DUMP_PATH;
+if (!PG_DUMP_PATH) {
+  // Intentar ubicaciones comunes de PostgreSQL
+  const possiblePaths = [
+    'C:/Program Files/PostgreSQL/18/bin/pg_dump.exe',
+    'C:/Program Files/PostgreSQL/17/bin/pg_dump.exe',
+    'C:/Program Files/PostgreSQL/16/bin/pg_dump.exe',
+    'C:/Program Files/PostgreSQL/15/bin/pg_dump.exe',
+    'C:/Program Files/PostgreSQL/14/bin/pg_dump.exe',
+    '/usr/bin/pg_dump',
+    '/usr/local/bin/pg_dump'
+  ];
+  
+  for (const path of possiblePaths) {
+    try {
+      if (fs.existsSync(path)) {
+        PG_DUMP_PATH = path;
+        console.log('✅ pg_dump encontrado en:', path);
+        break;
+      }
+    } catch (e) {
+      console.log('❌ Error checking path:', path, e.message);
+    }
+  }
+  
+  if (!PG_DUMP_PATH) {
+    console.log('⚠️ pg_dump no encontrado, usando comando del sistema');
+    PG_DUMP_PATH = 'pg_dump'; // Asumir que está en PATH
+  }
+}
+
+// Envolver en comillas si contiene espacios
+const getPgDumpCommand = () => {
+  return PG_DUMP_PATH.includes(' ') ? `"${PG_DUMP_PATH}"` : PG_DUMP_PATH;
+};
 
 if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -40,7 +74,7 @@ export const createBackup = async () => {
     const dbPort = process.env.DB_PORT || '5432';
 
     const env = { ...process.env, PGPASSWORD: dbPass };
-    const dumpCmd = `${PG_DUMP_PATH} -h ${dbHost} -p ${dbPort} -U ${dbUser} -F p -b -v -f "${dumpFile}" ${dbName}`;
+    const dumpCmd = `${getPgDumpCommand()} -h ${dbHost} -p ${dbPort} -U ${dbUser} -F p -b -v -f "${dumpFile}" ${dbName}`;
 
     exec(dumpCmd, { env }, (error, stdout, stderr) => {
       if (error) {
