@@ -121,8 +121,8 @@ export const capturarTodo = async (req, res) => {
                 const fileName = `${patente}_cam${ch}_${timestamp}.jpg`;
                 fs.writeFileSync(path.join(patenteDir, fileName), buffer);
 
-                // Retornamos el path relativo para el frontend: patente/filename
-                archivos.push(`${patente}/${fileName}`);
+                // Retornamos objeto con canal y path relativo
+                archivos.push({ canal: ch, ruta: `${patente}/${fileName}` });
                 console.log(`✅ Canal ${ch} capturado exitosamente: ${fileName}`);
             } catch (error) {
                 console.error(`❌ Error en Canal ${ch}:`, error.message);

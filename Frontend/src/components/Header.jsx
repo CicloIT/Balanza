@@ -22,6 +22,7 @@ const TAB_ICONS = {
   provincias:           <Map              size={15} strokeWidth={2} />,
   localidades:          <MapPin           size={15} strokeWidth={2} />,
   usuarios:             <Users            size={15} strokeWidth={2} />,
+  configuracion:        <Shield          size={15} strokeWidth={2} />,
 };
 
 const ROLE_ICONS = {
@@ -58,6 +59,13 @@ const SECTIONS = [
     label: 'Maestros',
     icon: <Package size={16} strokeWidth={2} />,
     ids: ['choferes', 'productores', 'productos', 'transportes', 'vehiculos', 'provincias', 'localidades', 'usuarios'],
+  },
+  {
+    key: 'configuracion',
+    label: 'Configuración',
+    icon: <Shield size={16} strokeWidth={2} />,
+    ids: ['configuracion'],
+    direct: true,
   },
 ];
 

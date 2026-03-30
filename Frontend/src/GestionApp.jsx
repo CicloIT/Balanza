@@ -23,6 +23,8 @@ import ReportePesadas from './components/ReportePesadas';
 import ReportesHistorial from './components/ReportesHistorial';
 import Guard from './components/Guard';
 import ProtectedRoute from './components/ProtectedRoute';
+import DetallePesadaModal from './components/DetallePesadaModal';
+import Configuracion from './components/Configuracion';
 
 export default function GestionApp() {
   const { isDark } = useThemeContext();
@@ -68,8 +70,12 @@ export default function GestionApp() {
   const provincias = useGestionAPI(provinciasConfig, canEditModule(MODULES.PROVINCIAS));
   const localidades = useGestionAPI(localidadesConfig, canEditModule(MODULES.LOCALIDADES));
   const vehiculos = useVehiculosInfinite(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS));
-  const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS, refreshTrigger);
+
+  const [pesadaDetalle, setPesadaDetalle] = useState(null);
   const [pesadasReporte, setPesadasReporte] = useState(null);
 
   const handleSubirPDF = async (e, id) => {
@@ -128,11 +134,12 @@ export default function GestionApp() {
       { id: MODULES.PESADA, label: 'Nueva Pesada',    count: null },
       { id: MODULES.PESADAS, label: pesadasConfig.label, count: pesadas.items.length },
       { id: MODULES.REPORTES, label: 'Reportes',       count: null },
+      { id: MODULES.CONFIGURACION, label: 'Configuración', count: null },
     ];
 
     return allTabs.filter(tab => {
-      // Siempre mostrar Dashboard, Nueva Pesada, Pesadas y Reportes si tienen acceso base
-      if ([MODULES.DASHBOARD, MODULES.PESADA, MODULES.PESADAS, MODULES.REPORTES].includes(tab.id)) {
+      // Mostrar módulos especiales si hay acceso: Dashboard, Nueva Pesada, Pesadas, Reportes, Configuración
+      if ([MODULES.DASHBOARD, MODULES.PESADA, MODULES.PESADAS, MODULES.REPORTES, MODULES.CONFIGURACION].includes(tab.id)) {
         return hasModuleAccess(tab.id);
       }
       
@@ -157,7 +164,7 @@ export default function GestionApp() {
   const canEditCurrentModule = canEditModule(activeTab);
 
   // Tabs que no usan el layout genérico de tabla
-  const tabsEspeciales = [MODULES.PESADA, MODULES.DASHBOARD, MODULES.REPORTES];
+  const tabsEspeciales = [MODULES.PESADA, MODULES.DASHBOARD, MODULES.REPORTES, MODULES.CONFIGURACION];
 
   const AlertBox = ({ type, message }) => {
     if (!message) return null;
@@ -211,6 +218,7 @@ export default function GestionApp() {
               choferes={choferes.items}
               productos={productos.items}
               productores={productores.items}
+              onPesadaCreated={() => setRefreshTrigger(Date.now())}
             />
           </ProtectedRoute>
         )}
@@ -224,6 +232,12 @@ export default function GestionApp() {
         {activeTab === MODULES.REPORTES && (
           <ProtectedRoute permissions={PERMISSIONS.REPORTES_VIEW}>
             <ReportesHistorial />
+          </ProtectedRoute>
+        )}
+
+        {activeTab === MODULES.CONFIGURACION && (
+          <ProtectedRoute permissions={PERMISSIONS.BACKUP_MANAGE}>
+            <Configuracion />
           </ProtectedRoute>
         )}
 
@@ -261,6 +275,7 @@ export default function GestionApp() {
                     onToggleEstado={currentGestion.toggleEstado}
                     onSubirPDF={handleSubirPDF}
                     onGenerarReporte={setPesadasReporte}
+                    onVerDetalles={setPesadaDetalle}
                     soloLectura={activeTab === 'pesadas'}
                     hasMore={currentGestion.hasMore}
                     loadMore={currentGestion.loadMore}
@@ -302,6 +317,15 @@ export default function GestionApp() {
         <ReportePesadas
           pesadas={pesadasReporte}
           onClose={() => setPesadasReporte(null)}
+        />
+      )}
+
+      {/* Detalle de pesada individual */}
+      {pesadaDetalle && (
+        <DetallePesadaModal
+          abierto={!!pesadaDetalle}
+          item={pesadaDetalle}
+          onClose={() => setPesadaDetalle(null)}
         />
       )}
 

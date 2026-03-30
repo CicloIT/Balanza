@@ -46,8 +46,7 @@ const BalanzaDisplay = memo(({ onCapture, weightRef, statusRef, isDark }) => {
   const wsRef = useRef(null);
 
   useEffect(() => {
-    const connectWS = () => {
-      console.log('[BalanzaDisplay] Conectando...');
+    const connectWS = () => {      
       const socket = new WebSocket(WS_URL);
       wsRef.current = socket;
 
@@ -97,7 +96,7 @@ const BalanzaDisplay = memo(({ onCapture, weightRef, statusRef, isDark }) => {
         </label>
         <div className={`flex items-center gap-2 text-xs font-mono ${status === 'CONNECTED' ? 'text-green-500' : 'text-red-500'}`}>
           <div className={`w-2 h-2 rounded-full ${status === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-          {status === 'CONNECTED' ? 'LIVE' : 'OFFLINE'}
+          {status === 'CONNECTED' ? 'LIVE' : 'CABEZAL FUERA DE SERVICIO'}
         </div>
       </div>
       <div className={`relative group px-8 py-6 rounded-2xl flex items-center justify-center min-h-[120px] transition-all ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
@@ -109,22 +108,12 @@ const BalanzaDisplay = memo(({ onCapture, weightRef, statusRef, isDark }) => {
           {peso.toLocaleString()}
           <span className="text-2xl ml-2">kg</span>
         </span>
-
-        {status === 'CONNECTED' && (
-          <button
-            onClick={() => onCapture(peso)}
-            title="Capturar este peso"
-            className="absolute -right-3 -top-3 p-4 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 transition-all hover:scale-110 active:scale-95 group-hover:rotate-6"
-          >
-            <Download size={24} />
-          </button>
-        )}
       </div>
     </div>
   );
 });
 
-export default function PesadaForm() {
+export default function PesadaForm({ transportes: transportesProp, choferes: choferesProp, productos: productosProp, productores: productoresProp, onPesadaCreated }) {
   const { isDark } = useThemeContext();
   const { canEnterManualWeight, rol } = usePermissions();
 
@@ -271,11 +260,14 @@ export default function PesadaForm() {
       if (data.status === 'ok') {
         setCamImages(data.archivos || []);
         setCamStatus('success');
+        return data.archivos || [];
       } else {
         setCamStatus('error');
+        return [];
       }
     } catch (e) {
       setCamStatus('error');
+      return [];
     } finally {
       setCamLoading(false);
     }
@@ -303,7 +295,18 @@ export default function PesadaForm() {
 
     try {
       setLoading(true);
-      capturarFotos(formData.vehiculo_patente);
+      
+      // Solo capturar fotos si no hay pesada activa con fotos operacion_id
+      // o si es una pesada nueva (BRUTO sin operacion previa)
+      let fotosCapturadas = [];
+      const yaTieneFotos = pesadaActiva && pesadaActiva.fotos && JSON.parse(typeof pesadaActiva.fotos === 'string' ? pesadaActiva.fotos : JSON.stringify(pesadaActiva.fotos)).length > 0;
+      
+      if (!yaTieneFotos) {
+        console.log('📸 No se encontraron fotos previas, capturando nuevas...');
+        fotosCapturadas = await capturarFotos(formData.vehiculo_patente);
+      } else {
+        console.log('📸 La operación ya tiene fotos vinculadas, saltando captura.');
+      }
 
       // Mapear nombres a IDs si es necesario (para datalists)
       const findId = (list, val, nameAttr = 'nombre') => {
@@ -328,6 +331,14 @@ export default function PesadaForm() {
       if (formData.balancero) d.append('balancero', formData.balancero);
       if (formData.nro_remito) d.append('nro_remito', formData.nro_remito);
       if (archivoPDF) d.append('archivo', archivoPDF);
+      
+      // Pasar las fotos capturadas (array de objetos o strings)
+      if (fotosCapturadas && fotosCapturadas.length > 0) {
+        d.append('fotos', JSON.stringify(fotosCapturadas));
+      } else if (camImages && camImages.length > 0) {
+        // Fallback si por alguna razón no se capturaron ahora pero hay previas
+        d.append('fotos', JSON.stringify(camImages));
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/pesadas`, {
         method: 'POST',
@@ -339,6 +350,7 @@ export default function PesadaForm() {
       if (!res.ok) throw new Error(json.error || 'Error al registrar pesada');
 
       setMessage({ type: 'success', text: `Pesada ${tipo} registrada exitosamente` });
+      if (onPesadaCreated) onPesadaCreated();
       setFormData({ 
         vehiculo_patente: '',
         chofer_id: '',
@@ -402,7 +414,7 @@ export default function PesadaForm() {
             label="Chofer"
             name="chofer_id"
             value={formData.chofer_id}
-            options={choferes}
+            options={choferesProp}
             displayKey="apellido_nombre"
             onChange={handleInputChange}
             placeholder="Apellido, Nombre"
@@ -411,7 +423,7 @@ export default function PesadaForm() {
             label="Transporte"
             name="transporte_id"
             value={formData.transporte_id}
-            options={transportes}
+            options={transportesProp}
             displayKey="nombre"
             onChange={handleInputChange}
             placeholder="Empresa..."
@@ -420,7 +432,7 @@ export default function PesadaForm() {
             label="Producto"
             name="producto_id"
             value={formData.producto_id}
-            options={productos}
+            options={productosProp}
             displayKey="nombre"
             onChange={handleInputChange}
             placeholder="Tipo de carga..."
@@ -429,7 +441,7 @@ export default function PesadaForm() {
             label="Productor"
             name="productor_id"
             value={formData.productor_id}
-            options={productores}
+            options={productoresProp}
             displayKey="nombre"
             onChange={handleInputChange}
             placeholder="Productor..."
@@ -459,22 +471,43 @@ export default function PesadaForm() {
             <div className="w-1 h-24 bg-blue-500 rounded-full"></div>
           </div>
 
-          <div className="flex-1 w-full space-y-3">
-            <div className="flex items-center gap-2">
+          <div className="flex-1 w-full space-y-4">
+            <div className="flex items-center justify-between gap-2">
                <label className={`text-sm font-bold ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>PESO PARA REGISTRO (kg)</label>
                {!canEnterManualWeight() && <Lock size={14} className="text-slate-400" title="Manual weight locked for balancero" />}
             </div>
-            <div className="relative">
-              <input
-                type="number"
-                name="peso"
-                value={formData.peso}
-                onChange={handleInputChange}
-                disabled={!canEnterManualWeight()}
-                placeholder="0"
-                className={`w-full text-5xl md:text-6xl font-mono font-black py-6 px-8 rounded-2xl text-center outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-emerald-400' : 'bg-white border-slate-300 text-emerald-600'} ${!canEnterManualWeight() ? 'cursor-not-allowed opacity-80' : 'focus:ring-2 focus:ring-emerald-500'}`}
-              />
-              <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-bold opacity-30">kg</span>
+            
+            <div className="flex flex-col gap-4">
+              <div className="relative">
+                <input
+                  type="number"
+                  name="peso"
+                  value={formData.peso}
+                  onChange={handleInputChange}
+                  disabled={!canEnterManualWeight()}
+                  placeholder="0"
+                  className={`w-full text-5xl md:text-6xl font-mono font-black py-6 px-8 rounded-2xl text-center outline-none transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-emerald-400' : 'bg-white border-slate-300 text-emerald-600'} ${!canEnterManualWeight() ? 'cursor-not-allowed opacity-80' : 'focus:ring-2 focus:ring-emerald-500'}`}
+                />
+                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-bold opacity-30">kg</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentStatusRef.current === 'CONNECTED') {
+                    handleCapture(currentWeightRef.current);
+                  }
+                }}
+                disabled={currentStatusRef.current !== 'CONNECTED'}
+                className={`w-full py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg ${
+                  currentStatusRef.current === 'CONNECTED'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-600/20'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Download size={20} />
+                {currentStatusRef.current === 'CONNECTED' ? 'CAPTURAR PESO BALANZA' : 'BALANZA DESCONECTADA'}
+              </button>
             </div>
           </div>
         </div>
@@ -508,9 +541,10 @@ export default function PesadaForm() {
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {activeChannels.map(ch => {
               const img = camImages.find(i => i.canal === ch);
+              const imgSrc = img ? (img.ruta.startsWith('/capturas/') ? img.ruta : `/capturas/${img.ruta}`) : null;
               return (
                 <div key={ch} className={`aspect-video rounded-2xl overflow-hidden border relative ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
-                  {img ? <img src={`/${img.ruta}`} alt={`Cámara ${ch}`} className="w-full h-full object-cover"/> : <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-30"><Monitor size={48}/><span className="text-xs font-bold">CÁMARA {ch}</span></div>}
+                  {img ? <img src={imgSrc} alt={`Cámara ${ch}`} className="w-full h-full object-cover"/> : <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-30"><Monitor size={48}/><span className="text-xs font-bold">CÁMARA {ch}</span></div>}
                   {camLoading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><RefreshCw className="text-white animate-spin" size={24}/></div>}
                 </div>
               );

@@ -82,9 +82,19 @@ function RenderCelda({ item, keyName, isDark }) {
 }
 
 /* ─── Action buttons (reused in table row & card) ───────────────────────── */
-function AccionesPesada({ item, isDark, onSubirPDF }) {
+function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles }) {
   return (
     <>
+      <button
+        onClick={() => onVerDetalles?.(item)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${isDark
+          ? 'bg-slate-700/50 border-white/10 text-slate-300 hover:bg-slate-700'
+          : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+          }`}
+        title="Ver detalles completos"
+      >
+        <Eye size={14} /> Detalles
+      </button>
       {item.ruta ? (
         <a
           href={item.ruta.startsWith('documentos/') ? `/${item.ruta}` : `/documentos/${item.ruta}`}
@@ -119,7 +129,7 @@ function AccionesPesada({ item, isDark, onSubirPDF }) {
 /* ─── Desktop table row ─────────────────────────────────────────────────── */
 const FilaTabla = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -176,7 +186,7 @@ const FilaTabla = React.memo(({
               </>
             )}
             {tipo === 'pesadas' && (
-              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} />
+              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} />
             )}
           </div>
         </td>
@@ -188,7 +198,7 @@ const FilaTabla = React.memo(({
 /* ─── Mobile card ───────────────────────────────────────────────────────── */
 const CardItem = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -280,7 +290,7 @@ const CardItem = React.memo(({
             </>
           )}
           {tipo === 'pesadas' && (
-            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} />
+            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} />
           )}
         </div>
       )}
@@ -291,7 +301,7 @@ const CardItem = React.memo(({
 /* ─── Main component ────────────────────────────────────────────────────── */
 const TablaItems = React.memo(({
   items, tipo, columnasKeys, columnasLabels,
-  onEditar, onEliminar, onToggleEstado, onSubirPDF,
+  onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles,
   onGenerarReporte, soloLectura = false,
   hasMore, loadMore, loadingMore
 }) => {
@@ -338,7 +348,7 @@ const TablaItems = React.memo(({
   const sharedRowProps = {
     isDark, tipo, columnasKeys, columnasLabels,
     onToggleSeleccion: handleToggleSeleccion,
-    onToggleEstado, onEditar, onEliminar, onSubirPDF,
+    onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
     soloLectura, mostrarColumnaAcciones,
   };
 

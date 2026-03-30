@@ -25,7 +25,7 @@ function getAuthHeaders() {
   return headers;
 }
 
-export function usePesadasInfinite(enabled = true) {
+export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
   const [items,   setItems]   = useState([]);
   const [page,    setPage]    = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -96,6 +96,19 @@ export function usePesadasInfinite(enabled = true) {
       fetchPage(1, false);
     }
   }, [enabled, fetchPage, items.length, loading]);
+
+  // Refresh when trigger changes
+  useEffect(() => {
+    if (enabled && refreshTrigger > 0) {
+      setItems([]);
+      setPage(1);
+      setHasMore(true);
+      setError(null);
+      loadedPagesRef.current.clear();
+      loadedPagesRef.current.add(1);
+      fetchPage(1, false);
+    }
+  }, [enabled, refreshTrigger, fetchPage]);
 
   // Load next page
   const loadMore = useCallback(() => {

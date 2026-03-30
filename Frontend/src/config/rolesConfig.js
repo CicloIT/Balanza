@@ -70,6 +70,9 @@ export const PERMISSIONS = {
   // Cámaras
   CAMARAS_VIEW: 'camaras:view',
   CAMARAS_CAPTURE: 'camaras:capture',
+
+  // Respaldos (Backup)
+  BACKUP_MANAGE: 'backup:manage',
 };
 
 // Definición de roles
@@ -183,6 +186,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.PESAJE_CREATE,
     PERMISSIONS.PESAJE_MANUAL,
     PERMISSIONS.PESAJE_UPDATE,
+    PERMISSIONS.BACKUP_MANAGE,
     PERMISSIONS.CHOFERES_VIEW,
     PERMISSIONS.PRODUCTORES_VIEW,
     PERMISSIONS.PRODUCTOS_VIEW,
@@ -206,10 +210,12 @@ export const MODULES = {
   PROVINCIAS: 'provincias',
   LOCALIDADES: 'localidades',
   REPORTES: 'reportes-historial',
+  CONFIGURACION: 'configuracion',
 };
 
 // Permisos requeridos por módulo
 export const MODULE_PERMISSIONS = {
+  [MODULES.CONFIGURACION]: [PERMISSIONS.BACKUP_MANAGE],
   [MODULES.DASHBOARD]: [PERMISSIONS.DASHBOARD_VIEW],
   [MODULES.PESADA]: [PERMISSIONS.PESAJE_CREATE],
   [MODULES.PESADAS]: [PERMISSIONS.PESAJE_VIEW],

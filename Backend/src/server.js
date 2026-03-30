@@ -27,6 +27,8 @@ import operacionesRoutes from './routes/operaciones.js';
 import metricasRoutes from './routes/metricas.js';
 import camarasRoutes from './routes/camaras.js';
 import reportesRoutes from './routes/reporte.js';
+import backupRoutes from './routes/backups.js';
+import { createBackup } from './controllers/backupController.js';
 
 dotenv.config();
 
@@ -137,6 +139,7 @@ app.use('/api/operaciones', operacionesRoutes);
 app.use('/api/metricas', metricasRoutes);
 app.use('/api/camaras', camarasRoutes);
 app.use('/api/reportes', reportesRoutes);
+app.use('/api/backup', backupRoutes);
 
 const CAPTURAS_DIR = path.join(__dirname, "../capturas");
 if (!fs.existsSync(CAPTURAS_DIR)) {
@@ -149,6 +152,12 @@ if (!fs.existsSync(DOCUMENTOS_DIR)) {
   fs.mkdirSync(DOCUMENTOS_DIR, { recursive: true });
 }
 app.use("/documentos", express.static(DOCUMENTOS_DIR));
+
+// Servir el frontend build
+const FRONTEND_DIR = path.join(__dirname, "../../Frontend/dist");
+if (fs.existsSync(FRONTEND_DIR)) {
+  app.use(express.static(FRONTEND_DIR));
+}
 
 // Ruta de prueba
 app.get('/api/health', async (req, res) => {
@@ -175,10 +184,19 @@ app.get('/api/health', async (req, res) => {
 
 // Manejo de rutas no encontradas y errores al FINAL
 app.use((req, res) => {
-  res.status(404).json({
-    error: 'Ruta no encontrada',
-    path: req.path,
-  });
+  if (req.path.startsWith('/api') || req.path.startsWith('/capturas') || req.path.startsWith('/documentos')) {
+    res.status(404).json({
+      error: 'Ruta no encontrada',
+      path: req.path,
+    });
+  } else {
+    // Para SPA, servir index.html
+    if (fs.existsSync(path.join(FRONTEND_DIR, 'index.html'))) {
+      res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
+    } else {
+      res.status(404).send('Frontend no disponible');
+    }
+  }
 });
 
 app.use((err, req, res, next) => {
@@ -189,8 +207,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`\n🚀 Backend ejecutándose en http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Backend ejecutándose en http://0.0.0.0:${PORT}`);
+  console.log(`🌐 Accesible desde la red local en: http://[TU_IP_LOCAL]:${PORT}`);
   console.log(`📡 Endpoints disponibles:`);
   console.log(`   GET  /api/health              - Verificar conexión`);
   console.log(`   GET  /api/choferes            - Listar choferes`);
@@ -203,6 +222,21 @@ server.listen(PORT, () => {
   console.log(`   GET  /api/usuarios            - Listar usuarios`);
   console.log(`   GET  /api/camaras             - Captura NVR`);
   console.log(`   GET  /api/reportes            - Listar reportes\n`);
+  
+  // Tarea programada semanal para backup (Domingo a las 00:00)
+  // Check cada hora si es Domingo y hora 0.
+  setInterval(async () => {
+    const ahora = new Date();
+    // 0 es Domingo, hora 3 AM (para no interferir con el uso)
+    if (ahora.getDay() === 0 && ahora.getHours() === 3) {
+      console.log('⏰ Iniciando backup automático semanal...');
+      try {
+        await createBackup();
+      } catch (err) {
+        console.error('❌ Falló el backup automático:', err.message);
+      }
+    }
+  }, 1000 * 60 * 60); // Cada hora
 });
 
 export default app;

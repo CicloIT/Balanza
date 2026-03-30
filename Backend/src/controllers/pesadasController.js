@@ -58,7 +58,7 @@ export const createPesada = async (req, res) => {
     await client.query('BEGIN');
     const {
       vehiculo_patente, tipo, peso, chofer_id, productor_id,
-      transporte_id, producto_id, balancero, nro_remito, es_manual
+      transporte_id, producto_id, balancero, nro_remito, es_manual, fotos
     } = req.body;
 
     // Validaciones
@@ -124,8 +124,8 @@ export const createPesada = async (req, res) => {
     const result = await client.query(
       `INSERT INTO pesada (
         operacion_id, tipo, peso, chofer_id, productor_id, 
-        transporte_id, producto_id, vehiculo_patente, balancero, nro_remito, ruta
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        transporte_id, producto_id, vehiculo_patente, balancero, nro_remito, ruta, fotos
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         operacion_id, tipo, peso,
@@ -133,7 +133,8 @@ export const createPesada = async (req, res) => {
         transporte_id || null, producto_id || null,
         vehiculo_patente, balancero || null,
         nro_remito || null,
-        req.file ? `documentos/${req.file.filename}` : null
+        req.file ? `documentos/${req.file.filename}` : null,
+        fotos ? (typeof fotos === 'string' ? fotos : JSON.stringify(fotos)) : null
       ]
     );
 
@@ -294,7 +295,8 @@ export const getPesadasAgrupadas = async (req, res) => {
              MAX(tr.nombre)         as transporte,
              MAX(p.balancero)       as balancero,
              MAX(p.nro_remito)      as nro_remito,
-             MAX(p.ruta)            as ruta
+             MAX(p.ruta)            as ruta,
+             jsonb_agg(p.fotos) filter (where p.fotos is not null) as todas_fotos
       FROM operacion_pesaje op
       LEFT JOIN pesada    p    ON op.id = p.operacion_id
       LEFT JOIN chofer    c    ON p.chofer_id    = c.id

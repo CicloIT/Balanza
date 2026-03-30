@@ -72,6 +72,9 @@ export const PERMISSIONS = {
   // Cámaras
   CAMARAS_VIEW: 'camaras:view',
   CAMARAS_CAPTURE: 'camaras:capture',
+
+  // Respaldos (Backup)
+  BACKUP_MANAGE: 'backup:manage',
 };
 
 // Definición de roles y sus permisos
@@ -237,6 +240,8 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.PESAJE_CREATE,
     PERMISSIONS.PESAJE_MANUAL,
     PERMISSIONS.PESAJE_UPDATE,
+    // Backup (respaldos)
+    PERMISSIONS.BACKUP_MANAGE,
     // Catálogos (solo lectura)
     PERMISSIONS.CHOFERES_VIEW,
     PERMISSIONS.PRODUCTORES_VIEW,
@@ -263,6 +268,7 @@ export const MODULES = {
   PROVINCIAS: 'provincias',
   LOCALIDADES: 'localidades',
   REPORTES: 'reportes-historial',
+  CONFIGURACION: 'configuracion',
 };
 
 // Permisos requeridos por módulo
@@ -278,6 +284,7 @@ export const MODULE_PERMISSIONS = {
   [MODULES.PROVINCIAS]: [PERMISSIONS.PROVINCIAS_VIEW],
   [MODULES.LOCALIDADES]: [PERMISSIONS.LOCALIDADES_VIEW],
   [MODULES.REPORTES]: [PERMISSIONS.REPORTES_VIEW],
+  [MODULES.CONFIGURACION]: [PERMISSIONS.BACKUP_MANAGE],
 };
 
 // Helper para verificar si un rol tiene un permiso
