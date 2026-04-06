@@ -1,16 +1,14 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
-import DigestFetch from "digest-fetch";
 import fs from "fs";
 import path from "path";
 import dotenv from 'dotenv';
 import pool from './config/database.js';
-import net from 'net';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from "url";
+import { inicializarBalanza, getEstadoBalanza } from './services/balanzaService.js';
 
 // Importar rutas
 import choferesRoutes from './routes/choferes.js';
@@ -29,7 +27,7 @@ import camarasRoutes from './routes/camaras.js';
 import reportesRoutes from './routes/reporte.js';
 import backupRoutes from './routes/backups.js';
 import { createBackup } from './controllers/backupController.js';
-
+import configRoutes from './routes/configuraciones.js';
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,15 +40,6 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Configuración de la balanza
-const BALANZA_IP = process.env.BALANZA_IP || '127.0.0.1';
-const BALANZA_PORT = parseInt(process.env.BALANZA_PORT) || 3000;
-
-// Estado de la balanza
-let scaleBuffer = Buffer.alloc(0);
-let lastWeight = null;
-let isScaleConnected = false;
-
 // Función de broadcast para WebSockets
 function broadcast(msg) {
   wss.clients.forEach(ws => {
@@ -58,65 +47,17 @@ function broadcast(msg) {
   });
 }
 
-// Conexión a la balanza
-const client = new net.Socket();
-
-function connectToBalanza() {
-  console.log(`📡 Intentando conectar a la balanza en ${BALANZA_IP}:${BALANZA_PORT}...`);
-  client.connect(BALANZA_PORT, BALANZA_IP);
-}
-
-client.on('connect', () => {
-  console.log('✅ Conectado a la balanza');
-  isScaleConnected = true;
-  broadcast({ type: 'STATUS', status: 'CONNECTED' });
-});
-
-client.on('data', (data) => {
-  scaleBuffer = Buffer.concat([scaleBuffer, data]);
-  let idx;
-  while ((idx = scaleBuffer.indexOf('\r\n')) !== -1) {
-    const frame = scaleBuffer.slice(0, idx + 2);
-    scaleBuffer = scaleBuffer.slice(idx + 2);
-    const clean = frame.toString('ascii').replace(/[\x02\x03]/g, '').trim();
-    const m = clean.match(/\d+/);
-    if (m) {
-      const weight = parseInt(m[0]);
-      if (weight !== lastWeight) {
-        lastWeight = weight;
-        console.log('⚖️ Peso actualizado:', weight);
-        broadcast({ type: 'WEIGHT', weight, ts: Date.now() });
-      }
-    }
-  }
-});
-
-client.on('error', (err) => {
-  console.error('❌ Error en la conexión con la balanza:', err.message);
-  isScaleConnected = false;
-  broadcast({ type: 'STATUS', status: 'DISCONNECTED', error: err.message });
-});
-
-client.on('close', () => {
-  if (isScaleConnected) {
-    console.log('⚠️ Conexión con la balanza cerrada. Reintentando...');
-  }
-  isScaleConnected = false;
-  broadcast({ type: 'STATUS', status: 'DISCONNECTED' });
-  setTimeout(connectToBalanza, 5000);
-});
-
-// Iniciar conexión inicial
-connectToBalanza();
+// Inicializar servicio de balanza (lee config desde BD)
+inicializarBalanza(broadcast);
 
 // Manejar conexiones WebSocket entrantes
 wss.on('connection', (ws) => {
   console.log('🔌 Nuevo cliente WebSocket conectado');
-  // Enviar estado actual al conectar
+  const estado = getEstadoBalanza();
   ws.send(JSON.stringify({
     type: 'STATUS',
-    status: isScaleConnected ? 'CONNECTED' : 'DISCONNECTED',
-    currentWeight: lastWeight
+    status: estado.connected ? 'CONNECTED' : 'DISCONNECTED',
+    currentWeight: estado.lastWeight
   }));
 });
 
@@ -140,6 +81,7 @@ app.use('/api/metricas', metricasRoutes);
 app.use('/api/camaras', camarasRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/backup', backupRoutes);
+app.use('/api/config', configRoutes);
 
 const CAPTURAS_DIR = path.join(__dirname, "../capturas");
 if (!fs.existsSync(CAPTURAS_DIR)) {
@@ -167,11 +109,7 @@ app.get('/api/health', async (req, res) => {
       status: 'OK',
       message: '✅ Backend conectado a PostgreSQL',
       timestamp: result.rows[0].now,
-      scale: {
-        connected: isScaleConnected,
-        lastWeight,
-        config: { ip: BALANZA_IP, port: BALANZA_PORT }
-      }
+      scale: getEstadoBalanza()
     });
   } catch (error) {
     res.status(500).json({
@@ -222,7 +160,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   GET  /api/usuarios            - Listar usuarios`);
   console.log(`   GET  /api/camaras             - Captura NVR`);
   console.log(`   GET  /api/reportes            - Listar reportes\n`);
-  
+
   // Tarea programada semanal para backup (Domingo a las 00:00)
   // Check cada hora si es Domingo y hora 0.
   setInterval(async () => {
