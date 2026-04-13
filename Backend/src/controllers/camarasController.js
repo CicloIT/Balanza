@@ -14,13 +14,27 @@ if (!fs.existsSync(CAPTURAS_DIR)) {
     fs.mkdirSync(CAPTURAS_DIR, { recursive: true });
 }
 
+// ─── Canales fijos para cada marca ────────────────────────────────────────────
+const CANALES_HIKVISION = [400, 500, 1800];
+const MAX_CANALES_DAHUA = 8;
+
+// ─── Construir URL de snapshot según marca ────────────────────────────────────
+const buildSnapshotUrl = (ip, marca, canal) => {
+    if (marca === "hikvision") {
+        return `http://${ip}/ISAPI/Streaming/channels/${canal}/picture`;
+    }
+    // Dahua (default)
+    return `https://${ip}/cgi-bin/snapshot.cgi?channel=${canal}`;
+};
+
+// ─── Obtener configuración de la grabadora desde la BD ────────────────────────
 const obtenerConfigGrabadora = async () => {
     try {
         const query = `
-        SELECT ip,usuario,contraseña AS password
+        SELECT ip, usuario, contraseña AS password
         FROM  configuracion_dispositivos
         WHERE tipo_dispositivo = 'grabadora'       
-        `
+        `;
         const result = await pool.query(query);
         if (!result.rows || result.rows.length === 0) {
             throw new Error("No hay configuración de grabadora");
@@ -30,81 +44,75 @@ const obtenerConfigGrabadora = async () => {
         console.error("Error al obtener configuración de la grabadora:", error);
         throw error;
     }
-}
+};
 
 const crearClienteNVR = async () => {
     const { ip, usuario, password } = await obtenerConfigGrabadora();
     const client = new DigestFetch(usuario, password);
-    return {
-        client,
-        ip
+    return { client, ip };
+};
+
+// ─── Cache de canales separada por marca ──────────────────────────────────────
+const cacheCanales = { dahua: null, hikvision: null };
+const ultimaDeteccion = { dahua: 0, hikvision: 0 };
+const CACHE_DURATION = 1000 * 60 * 1; // 1 minuto
+
+const detectarCanalesActivos = async (client, ip, marca = "dahua") => {
+    // Hikvision: canales fijos, sin auto-detección
+    if (marca === "hikvision") {
+        console.log(`📷 Hikvision: usando canales fijos ${CANALES_HIKVISION.join(", ")}`);
+        return CANALES_HIKVISION;
     }
-}
 
-/*
-const clientNVR = new DigestFetch("admin", "Camaras24.LC");
-const NVR_IP = "192.168.52.66";
-*/
-// Cache de canales para no sobrecargar el NVR
-let cacheCanales = null;
-let ultimaDeteccion = 0;
-const CACHE_DURATION = 1000 * 60 * 1; // 1 minuto (temporal para testeo rápido)
-
-const detectarCanalesActivos = async (client, ip) => {
+    // Dahua: auto-detección con cache
     const ahora = Date.now();
-    if (cacheCanales && (ahora - ultimaDeteccion < CACHE_DURATION)) {
-        return cacheCanales;
+    if (cacheCanales.dahua && (ahora - ultimaDeteccion.dahua < CACHE_DURATION)) {
+        return cacheCanales.dahua;
     }
 
-    console.log("🔍 Detectando canales activos en NVR...");
-    const maxCanales = 8;
+    console.log("🔍 Detectando canales activos en NVR Dahua...");
 
     const probarCanal = async (ch) => {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
 
         try {
-            const response = await client.fetch(
-                `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
-                { signal: controller.signal }
-            );
-
+            const url = buildSnapshotUrl(ip, "dahua", ch);
+            const response = await client.fetch(url, { signal: controller.signal });
             clearTimeout(timeout);
 
             if (response.ok) {
                 const buffer = await response.arrayBuffer();
-                if (buffer.byteLength > 1000) {
-                    return ch;
-                }
+                if (buffer.byteLength > 1000) return ch;
             }
         } catch (e) {
-            // ignorar errores
+            // ignorar errores de timeout/conexión
         }
-
         return null;
     };
 
     const resultados = await Promise.all(
-        Array.from({ length: maxCanales }, (_, i) => probarCanal(i + 1))
+        Array.from({ length: MAX_CANALES_DAHUA }, (_, i) => probarCanal(i + 1))
     );
 
     const activos = resultados.filter(Boolean);
-
     const finalActivos = activos.length > 0 ? activos : [1];
 
-    cacheCanales = finalActivos;
-    ultimaDeteccion = ahora;
+    cacheCanales.dahua = finalActivos;
+    ultimaDeteccion.dahua = ahora;
 
-    console.log(`✅ Canales detectados: ${finalActivos.join(", ")}`);
-
+    console.log(`✅ Canales Dahua detectados: ${finalActivos.join(", ")}`);
     return finalActivos;
 };
 
+// ─── Endpoints ────────────────────────────────────────────────────────────────
+
 export const getConfig = async (req, res) => {
     try {
+        const marca = (req.query.marca || "dahua").toLowerCase();
         const { client, ip } = await crearClienteNVR();
-        const canales = await detectarCanalesActivos(client, ip);
-        res.json({ success: true, canales });
+        const canales = await detectarCanalesActivos(client, ip, marca);
+        res.json({ success: true, canales, marca });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -112,7 +120,9 @@ export const getConfig = async (req, res) => {
 
 export const capturarTodo = async (req, res) => {
     const patente = (req.query.patente || "SIN_PATENTE").toUpperCase().trim();
-    console.log(`📸 Iniciando captura para Patente: ${patente}...`);
+    const marca = (req.query.marca || "dahua").toLowerCase();
+
+    console.log(`📸 Iniciando captura para Patente: ${patente} | Grabadora: ${marca.toUpperCase()}...`);
 
     const patenteDir = path.join(CAPTURAS_DIR, patente);
     if (!fs.existsSync(patenteDir)) {
@@ -120,26 +130,24 @@ export const capturarTodo = async (req, res) => {
     }
 
     const { client, ip } = await crearClienteNVR();
-    const canales = await detectarCanalesActivos(client, ip);
+    const canales = await detectarCanalesActivos(client, ip, marca);
     const archivos = [];
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
 
     try {
         for (const ch of canales) {
-            console.log(`🔍 Intentando capturar Canal ${ch} para ${patente}...`);
+            console.log(`🔍 Intentando capturar Canal ${ch} para ${patente} [${marca.toUpperCase()}]...`);
 
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 15000);
 
             try {
-                const response = await client.fetch(
-                    `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
-                    { signal: controller.signal }
-                );
+                const url = buildSnapshotUrl(ip, marca, ch);
+                const response = await client.fetch(url, { signal: controller.signal });
                 clearTimeout(timeout);
 
                 if (!response.ok) {
-                    throw new Error(`NVR respondió con status ${response.status}`);
+                    throw new Error(`Grabadora respondió con status ${response.status}`);
                 }
 
                 const buffer = Buffer.from(await response.arrayBuffer());
@@ -151,10 +159,10 @@ export const capturarTodo = async (req, res) => {
                 const fileName = `${patente}_cam${ch}_${timestamp}.jpg`;
                 fs.writeFileSync(path.join(patenteDir, fileName), buffer);
 
-                // Retornamos objeto con canal y path relativo
                 archivos.push({ canal: ch, ruta: `${patente}/${fileName}` });
                 console.log(`✅ Canal ${ch} capturado exitosamente: ${fileName}`);
             } catch (error) {
+                clearTimeout(timeout);
                 console.error(`❌ Error en Canal ${ch}:`, error.message);
             }
         }
@@ -166,27 +174,25 @@ export const capturarTodo = async (req, res) => {
             });
         }
 
-        res.json({
-            status: "ok",
-            archivos
-        });
+        res.json({ status: "ok", archivos, marca });
 
     } catch (error) {
         console.error("ERROR CRÍTICO NVR:", error);
-        res.status(500).json({
-            status: "error",
-            message: error.message
-        });
+        res.status(500).json({ status: "error", message: error.message });
     }
 };
 
-
 export const limpiarCache = (req, res) => {
-    cacheCanales = null;
-    ultimaDeteccion = 0;
+    const marca = (req.query.marca || "all").toLowerCase();
 
-    res.json({
-        success: true,
-        message: "Cache limpiado"
-    });
+    if (marca === "dahua" || marca === "all") {
+        cacheCanales.dahua = null;
+        ultimaDeteccion.dahua = 0;
+    }
+    if (marca === "hikvision" || marca === "all") {
+        cacheCanales.hikvision = null;
+        ultimaDeteccion.hikvision = 0;
+    }
+
+    res.json({ success: true, message: `Cache limpiado (${marca})` });
 };

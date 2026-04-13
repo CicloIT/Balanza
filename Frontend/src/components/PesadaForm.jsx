@@ -133,6 +133,9 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
   const [camImages, setCamImages] = useState([]);
   const [camStatus, setCamStatus] = useState(null);
   const [activeChannels, setActiveChannels] = useState([1, 2, 3]);
+  const [marcaGrabadora, setMarcaGrabadora] = useState(
+    () => localStorage.getItem('balanza_marca_grabadora') || 'dahua'
+  );
 
   const [formData, setFormData] = useState({
     vehiculo_patente: '',
@@ -220,7 +223,8 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     // Cargar config cámaras
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/camaras/config`, { headers: getAuthHeaders() });
+        const marca = localStorage.getItem('balanza_marca_grabadora') || 'dahua';
+        const res = await fetch(`${API_BASE_URL}/api/camaras/config?marca=${marca}`, { headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success && data.canales) setActiveChannels(data.canales);
       } catch (e) { /* ignore */ }
@@ -249,13 +253,14 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     setTimeout(() => setMessage(null), 2000);
   }, []);
 
-  const capturarFotos = async (patente) => {
+  const capturarFotos = async (patente, marca = marcaGrabadora) => {
     try {
       setCamLoading(true);
       setCamStatus('capturing');
-      const res = await fetch(`${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}`, {
-        headers: getAuthHeaders()
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}&marca=${marca}`,
+        { headers: getAuthHeaders() }
+      );
       const data = await res.json();
       if (data.status === 'ok') {
         setCamImages(data.archivos || []);
@@ -271,6 +276,18 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     } finally {
       setCamLoading(false);
     }
+  };
+
+  const cambiarMarca = async (nuevaMarca) => {
+    setMarcaGrabadora(nuevaMarca);
+    localStorage.setItem('balanza_marca_grabadora', nuevaMarca);
+    setCamImages([]);
+    setCamStatus(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/camaras/config?marca=${nuevaMarca}`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.success && data.canales) setActiveChannels(data.canales);
+    } catch (e) { /* ignore */ }
   };
 
   const registrarPesada = async (tipo) => {
@@ -534,17 +551,81 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
 
       {/* Cámaras Section */}
       <div className={`backdrop-blur-xl rounded-2xl shadow-xl p-8 border transition-all ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/80 border-slate-200'}`}>
-         <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3"><Camera className="text-blue-500" size={24}/><h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cámaras de Seguridad</h3></div>
-            <button onClick={() => capturarFotos(formData.vehiculo_patente)} disabled={camLoading} className={`p-2 rounded-lg transition-all ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}><RefreshCw size={20} className={camLoading ? 'animate-spin' : ''}/></button>
+
+         {/* Header con selector de marca */}
+         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Camera className="text-blue-500" size={24}/>
+              <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cámaras de Seguridad</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Toggle Marca */}
+              <div className={`flex rounded-xl overflow-hidden border text-xs font-black ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-200 bg-slate-100'}`}>
+                <button
+                  id="btn-marca-dahua"
+                  onClick={() => cambiarMarca('dahua')}
+                  disabled={camLoading}
+                  className={`px-4 py-2 transition-all ${
+                    marcaGrabadora === 'dahua'
+                      ? 'bg-blue-600 text-white shadow-inner'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  DAHUA
+                </button>
+                <button
+                  id="btn-marca-hikvision"
+                  onClick={() => cambiarMarca('hikvision')}
+                  disabled={camLoading}
+                  className={`px-4 py-2 transition-all ${
+                    marcaGrabadora === 'hikvision'
+                      ? 'bg-red-600 text-white shadow-inner'
+                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  HIKVISION
+                </button>
+              </div>
+              {/* Refresh */}
+              <button
+                onClick={() => capturarFotos(formData.vehiculo_patente)}
+                disabled={camLoading}
+                className={`p-2 rounded-xl transition-all ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}
+                title="Recapturar fotos"
+              >
+                <RefreshCw size={20} className={camLoading ? 'animate-spin' : ''}/>
+              </button>
+            </div>
          </div>
+
+         {/* Badge de marca activa */}
+         <div className="mb-4">
+           <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
+             marcaGrabadora === 'hikvision'
+               ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+               : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+           }`}>
+             <span className={`w-1.5 h-1.5 rounded-full ${
+               marcaGrabadora === 'hikvision' ? 'bg-red-400' : 'bg-blue-400'
+             }`}></span>
+             {marcaGrabadora === 'hikvision' ? 'Hikvision — Canales 400 · 500 · 1800' : 'Dahua — Detección automática de canales'}
+           </span>
+         </div>
+
+         {/* Grid de cámaras */}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {activeChannels.map(ch => {
               const img = camImages.find(i => i.canal === ch);
               const imgSrc = img ? (img.ruta.startsWith('/capturas/') ? img.ruta : `/capturas/${img.ruta}`) : null;
               return (
                 <div key={ch} className={`aspect-video rounded-2xl overflow-hidden border relative ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
-                  {img ? <img src={imgSrc} alt={`Cámara ${ch}`} className="w-full h-full object-cover"/> : <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-30"><Monitor size={48}/><span className="text-xs font-bold">CÁMARA {ch}</span></div>}
+                  {img
+                    ? <img src={imgSrc} alt={`Cámara ${ch}`} className="w-full h-full object-cover"/>
+                    : <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-30">
+                        <Monitor size={48}/>
+                        <span className="text-xs font-bold">CÁMARA {ch}</span>
+                      </div>
+                  }
                   {camLoading && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><RefreshCw className="text-white animate-spin" size={24}/></div>}
                 </div>
               );
