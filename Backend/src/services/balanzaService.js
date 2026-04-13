@@ -56,14 +56,24 @@ const crearSocket = () => {
             scaleBuffer = scaleBuffer.slice(idx + 1);
             const clean = frame.toString('ascii').replace(/[\x02\x03\r]/g, '').trim();
             console.log('⚖️  Valor crudo/limpio recibido via TCP:', clean);
-            const m = clean.match(/\d+/);
-            if (m) {
-                const weight = parseInt(m[0]);
-                if (weight !== lastWeight) {
-                    lastWeight = weight;
-                    console.log('⚖️  Peso actualizado:', weight);
-                    broadcast({ type: 'WEIGHT', weight, ts: Date.now() });
-                }
+
+            // Protocolo: ":00|6893|000060|000000|000060|12"
+            // Índices:      [0]   [1]    [2]     [3]     [4]  [5]
+            //               status  ID   PESO    TARA    NETO  checksum
+            // Separamos por '|' y quitamos el ':' del primer campo
+            const parts = clean.split('|').map(p => p.replace(/^:/, '').trim());
+            console.log('⚖️  Campos parseados:', parts);
+
+            // El peso siempre está en el campo índice 2 (e.g. "000060" → 60 kg)
+            const rawWeight = parts[2];
+            const weight = rawWeight !== undefined && /^\d+$/.test(rawWeight)
+                ? parseInt(rawWeight, 10)
+                : null;
+
+            if (weight !== null && weight !== lastWeight) {
+                lastWeight = weight;
+                console.log('⚖️  Peso actualizado:', weight, 'kg');
+                broadcast({ type: 'WEIGHT', weight, ts: Date.now() });
             }
         }
     });
