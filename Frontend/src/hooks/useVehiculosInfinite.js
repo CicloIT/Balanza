@@ -1,10 +1,3 @@
-/**
- * useVehiculosInfinite
- *
- * Hook para cargar vehículos con paginación progresiva (infinite scroll).
- * Carga PAGE_SIZE registros inicialmente y agrega más cuando el usuario llega
- * al final de la lista.
- */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 

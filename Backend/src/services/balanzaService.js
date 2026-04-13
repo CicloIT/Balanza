@@ -22,8 +22,8 @@ const obtenerConfigBalanza = async () => {
     `);
     if (!result.rows.length) throw new Error('No hay configuración de balanza en la base de datos');
     const { ip, puerto } = result.rows[0];
-    if (!ip || !puerto) throw new Error('La configuración de balanza no tiene IP o puerto definidos');
-    return { ip, puerto: parseInt(puerto) };
+    if (!ip) throw new Error('La configuración de balanza no tiene IP definida');
+    return { ip, puerto: puerto ? parseInt(puerto) : null };
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,10 +51,11 @@ const crearSocket = () => {
     socket.on('data', (data) => {
         scaleBuffer = Buffer.concat([scaleBuffer, data]);
         let idx;
-        while ((idx = scaleBuffer.indexOf('\r\n')) !== -1) {
-            const frame = scaleBuffer.slice(0, idx + 2);
-            scaleBuffer = scaleBuffer.slice(idx + 2);
-            const clean = frame.toString('ascii').replace(/[\x02\x03]/g, '').trim();
+        while ((idx = scaleBuffer.indexOf('\n')) !== -1) {
+            const frame = scaleBuffer.slice(0, idx + 1);
+            scaleBuffer = scaleBuffer.slice(idx + 1);
+            const clean = frame.toString('ascii').replace(/[\x02\x03\r]/g, '').trim();
+            console.log('⚖️  Valor crudo/limpio recibido via TCP:', clean);
             const m = clean.match(/\d+/);
             if (m) {
                 const weight = parseInt(m[0]);
@@ -92,6 +93,13 @@ const conectar = async () => {
         const { ip, puerto } = await obtenerConfigBalanza();
         currentIp = ip;
         currentPort = puerto;
+
+        if (!puerto) {
+            console.warn('⚠️ No hay puerto configurado para la balanza; no se puede conectar al socket TCP.');
+            isScaleConnected = false;
+            broadcast({ type: 'STATUS', status: 'DISCONNECTED', error: 'Puerto no configurado' });
+            return;
+        }
 
         // Destruir socket previo si existe
         if (client) {
