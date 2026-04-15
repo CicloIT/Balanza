@@ -133,9 +133,7 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
   const [camImages, setCamImages] = useState([]);
   const [camStatus, setCamStatus] = useState(null);
   const [activeChannels, setActiveChannels] = useState([1, 2, 3]);
-  const [marcaGrabadora, setMarcaGrabadora] = useState(
-    () => localStorage.getItem('balanza_marca_grabadora') || 'dahua'
-  );
+  const [marcaGrabadora, setMarcaGrabadora] = useState('dahua');
 
   const [formData, setFormData] = useState({
     vehiculo_patente: '',
@@ -223,10 +221,12 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     // Cargar config cámaras
     (async () => {
       try {
-        const marca = localStorage.getItem('balanza_marca_grabadora') || 'dahua';
-        const res = await fetch(`${API_BASE_URL}/api/camaras/config?marca=${marca}`, { headers: getAuthHeaders() });
+        const res = await fetch(`${API_BASE_URL}/api/camaras/config`, { headers: getAuthHeaders() });
         const data = await res.json();
-        if (data.success && data.canales) setActiveChannels(data.canales);
+        if (data.success) {
+           if (data.canales) setActiveChannels(data.canales);
+           if (data.marca) setMarcaGrabadora(data.marca);
+        }
       } catch (e) { /* ignore */ }
     })();
   }, []);
@@ -253,12 +253,12 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     setTimeout(() => setMessage(null), 2000);
   }, []);
 
-  const capturarFotos = async (patente, marca = marcaGrabadora) => {
+  const capturarFotos = async (patente) => {
     try {
       setCamLoading(true);
       setCamStatus('capturing');
       const res = await fetch(
-        `${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}&marca=${marca}`,
+        `${API_BASE_URL}/api/camaras/capturar-todo?patente=${encodeURIComponent(patente)}`,
         { headers: getAuthHeaders() }
       );
       const data = await res.json();
@@ -278,17 +278,7 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     }
   };
 
-  const cambiarMarca = async (nuevaMarca) => {
-    setMarcaGrabadora(nuevaMarca);
-    localStorage.setItem('balanza_marca_grabadora', nuevaMarca);
-    setCamImages([]);
-    setCamStatus(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/camaras/config?marca=${nuevaMarca}`, { headers: getAuthHeaders() });
-      const data = await res.json();
-      if (data.success && data.canales) setActiveChannels(data.canales);
-    } catch (e) { /* ignore */ }
-  };
+
 
   const registrarPesada = async (tipo) => {
     if (!formData.peso || parseFloat(formData.peso) <= 0) {
@@ -559,33 +549,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
               <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cámaras de Seguridad</h3>
             </div>
             <div className="flex items-center gap-3">
-              {/* Toggle Marca */}
-              <div className={`flex rounded-xl overflow-hidden border text-xs font-black ${isDark ? 'border-slate-600 bg-slate-900' : 'border-slate-200 bg-slate-100'}`}>
-                <button
-                  id="btn-marca-dahua"
-                  onClick={() => cambiarMarca('dahua')}
-                  disabled={camLoading}
-                  className={`px-4 py-2 transition-all ${
-                    marcaGrabadora === 'dahua'
-                      ? 'bg-blue-600 text-white shadow-inner'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  DAHUA
-                </button>
-                <button
-                  id="btn-marca-hikvision"
-                  onClick={() => cambiarMarca('hikvision')}
-                  disabled={camLoading}
-                  className={`px-4 py-2 transition-all ${
-                    marcaGrabadora === 'hikvision'
-                      ? 'bg-red-600 text-white shadow-inner'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  HIKVISION
-                </button>
-              </div>
               {/* Refresh */}
               <button
                 onClick={() => capturarFotos(formData.vehiculo_patente)}

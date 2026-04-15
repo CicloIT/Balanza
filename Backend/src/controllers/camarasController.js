@@ -31,7 +31,7 @@ const buildSnapshotUrl = (ip, marca, canal) => {
 const obtenerConfigGrabadora = async () => {
     try {
         const query = `
-        SELECT ip, usuario, contraseña AS password
+        SELECT ip, usuario, contraseña AS password, marca
         FROM  configuracion_dispositivos
         WHERE tipo_dispositivo = 'grabadora'       
         `;
@@ -47,9 +47,9 @@ const obtenerConfigGrabadora = async () => {
 };
 
 const crearClienteNVR = async () => {
-    const { ip, usuario, password } = await obtenerConfigGrabadora();
+    const { ip, usuario, password, marca } = await obtenerConfigGrabadora();
     const client = new DigestFetch(usuario, password);
-    return { client, ip };
+    return { client, ip, marca: marca || 'dahua' };
 };
 
 // ─── Cache de canales separada por marca ──────────────────────────────────────
@@ -109,9 +109,8 @@ const detectarCanalesActivos = async (client, ip, marca = "dahua") => {
 
 export const getConfig = async (req, res) => {
     try {
-        const marca = (req.query.marca || "dahua").toLowerCase();
-        const { client, ip } = await crearClienteNVR();
-        const canales = await detectarCanalesActivos(client, ip, marca);
+        const { client, ip, marca } = await crearClienteNVR();
+        const canales = await detectarCanalesActivos(client, ip, marca.toLowerCase());
         res.json({ success: true, canales, marca });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -120,16 +119,17 @@ export const getConfig = async (req, res) => {
 
 export const capturarTodo = async (req, res) => {
     const patente = (req.query.patente || "SIN_PATENTE").toUpperCase().trim();
-    const marca = (req.query.marca || "dahua").toLowerCase();
-
-    console.log(`📸 Iniciando captura para Patente: ${patente} | Grabadora: ${marca.toUpperCase()}...`);
 
     const patenteDir = path.join(CAPTURAS_DIR, patente);
     if (!fs.existsSync(patenteDir)) {
         fs.mkdirSync(patenteDir, { recursive: true });
     }
 
-    const { client, ip } = await crearClienteNVR();
+    const { client, ip, marca: dbMarca } = await crearClienteNVR();
+    const marca = dbMarca.toLowerCase();
+
+    console.log(`📸 Iniciando captura para Patente: ${patente} | Grabadora: ${marca.toUpperCase()}...`);
+
     const canales = await detectarCanalesActivos(client, ip, marca);
     const archivos = [];
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
