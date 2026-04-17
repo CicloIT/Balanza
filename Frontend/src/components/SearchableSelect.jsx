@@ -15,22 +15,48 @@ const SearchableSelect = memo(({
   const { isDark } = useThemeContext();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [visibleCount, setVisibleCount] = useState(50);
   const containerRef = useRef(null);
 
-  // Sincronizar searchTerm con el valor actual si es necesario
+  // Sincronizar searchTerm con el valor actual si es necesario y resetear paginación local
   useEffect(() => {
-    if (!isOpen) setSearchTerm('');
+    if (!isOpen) { 
+      setSearchTerm('');
+      setVisibleCount(50);
+    }
   }, [isOpen]);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [searchTerm]);
 
   // Filtrar opciones basadas en el término de búsqueda
   const filteredOptions = useMemo(() => {
-    if (!searchTerm) return options.slice(0, 100); // Mostrar máximo 100 para rendimiento
-    const term = searchTerm.toLowerCase();
-    return options.filter(opt => {
-      const displayVal = String(opt[displayKey] || '').toLowerCase();
-      return displayVal.includes(term);
-    }).slice(0, 50);
+    let result = options || [];
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(opt => {
+        const displayVal = String(opt[displayKey] || '').toLowerCase();
+        return displayVal.includes(term);
+      });
+    }
+    return result;
   }, [options, searchTerm, displayKey]);
+
+  // Aplicar límite visible de la "paginación" local
+  const displayedOptions = useMemo(() => {
+    return filteredOptions.slice(0, visibleCount);
+  }, [filteredOptions, visibleCount]);
+
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    // Cargar más cuando estemos cerca del final (a 50px)
+    if (scrollHeight - scrollTop - clientHeight < 50) {
+      if (visibleCount < filteredOptions.length) {
+        setVisibleCount(prev => prev + 50);
+      }
+    }
+  };
 
   // Cerrar al hacer clic afuera
   useEffect(() => {
@@ -111,9 +137,12 @@ const SearchableSelect = memo(({
           </div>
 
           {/* Lista de opciones */}
-          <div className="max-h-[250px] overflow-y-auto custom-scrollbar">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, idx) => (
+          <div 
+            className="max-h-[250px] overflow-y-auto custom-scrollbar"
+            onScroll={handleScroll}
+          >
+            {displayedOptions.length > 0 ? (
+              displayedOptions.map((opt, idx) => (
                 <div
                   key={opt.id || idx}
                   onClick={() => handleSelect(opt[displayKey])}
@@ -131,7 +160,11 @@ const SearchableSelect = memo(({
                 <p className="text-sm opacity-50 mb-2">No se encontraron resultados</p>
                 {searchTerm && (
                   <button
-                    onClick={() => handleSelect(searchTerm)}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(searchTerm);
+                    }}
                     className="text-xs font-bold text-blue-500 hover:underline"
                   >
                     Usar "{searchTerm}" como nuevo

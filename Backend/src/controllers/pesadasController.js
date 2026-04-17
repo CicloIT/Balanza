@@ -56,33 +56,42 @@ export const createPesada = async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
     const {
       vehiculo_patente, tipo, peso, chofer_id, productor_id,
       transporte_id, producto_id, balancero, nro_remito, es_manual, fotos
     } = req.body;
 
-    // Validaciones
+    // ─── Validaciones ─────────────────────────────────────────
     if (!vehiculo_patente || !tipo || !peso) {
-      return res.status(400).json({ success: false, error: 'Faltan campos requeridos (patente, tipo, peso)' });
+      return res.status(400).json({
+        success: false,
+        error: 'Faltan campos requeridos (patente, tipo, peso)'
+      });
     }
 
     if (!['BRUTO', 'TARA'].includes(tipo)) {
-      return res.status(400).json({ success: false, error: 'Tipo debe ser BRUTO o TARA' });
+      return res.status(400).json({
+        success: false,
+        error: 'Tipo debe ser BRUTO o TARA'
+      });
     }
 
     if (peso <= 0) {
-      return res.status(400).json({ success: false, error: 'El peso debe ser positivo' });
+      return res.status(400).json({
+        success: false,
+        error: 'El peso debe ser positivo'
+      });
     }
 
-    // Validación de permiso para carga manual
-    // Si es_manual es 'true' o true, verificar que el usuario tenga el permiso PESAJE_MANUAL
+    // ─── Permiso pesada manual ───────────────────────────────
     if (es_manual === 'true' || es_manual === true) {
       const userRol = req.user?.rol;
       if (!hasPermission(userRol, PERMISSIONS.PESAJE_MANUAL)) {
         await client.query('ROLLBACK');
         return res.status(403).json({
           success: false,
-          error: 'No tiene permiso para cargar peso manualmente. Solo balancero y subalancero pueden hacerlo.',
+          error: 'No tiene permiso para cargar peso manualmente.',
           code: 'MANUAL_WEIGHT_FORBIDDEN',
           requiredPermission: PERMISSIONS.PESAJE_MANUAL,
           currentRole: userRol
@@ -90,7 +99,7 @@ export const createPesada = async (req, res) => {
       }
     }
 
-    // Buscar operación abierta
+    // ─── Buscar o crear operación ────────────────────────────
     let operacionResult = await client.query(
       'SELECT id FROM operacion_pesaje WHERE vehiculo_patente = $1 AND abierta = true',
       [vehiculo_patente]
@@ -99,10 +108,7 @@ export const createPesada = async (req, res) => {
     let operacion_id;
 
     if (operacionResult.rows.length === 0) {
-      if (tipo === 'TARA') {
-        throw new Error('No se puede registrar TARA sin una pesada de BRUTO previa abierta');
-      }
-      // Crear nueva operación
+      // 👉 Ahora SIEMPRE crea operación (TARA o BRUTO)
       const newOp = await client.query(
         'INSERT INTO operacion_pesaje (vehiculo_patente) VALUES ($1) RETURNING id',
         [vehiculo_patente]
@@ -110,33 +116,63 @@ export const createPesada = async (req, res) => {
       operacion_id = newOp.rows[0].id;
     } else {
       operacion_id = operacionResult.rows[0].id;
-
-      // Verificar que no exista ya una pesada del mismo tipo para esta operación
-      const pesadaExist = await client.query(
-        'SELECT id FROM pesada WHERE operacion_id = $1 AND tipo = $2',
-        [operacion_id, tipo]
-      );
-      if (pesadaExist.rows.length > 0) {
-        throw new Error(`Ya existe una pesada de tipo ${tipo} para esta operación`);
-      }
     }
 
+    // ─── Evitar duplicados ───────────────────────────────────
+    const pesadaExist = await client.query(
+      'SELECT id FROM pesada WHERE operacion_id = $1 AND tipo = $2',
+      [operacion_id, tipo]
+    );
+
+    if (pesadaExist.rows.length > 0) {
+      throw new Error(`Ya existe una pesada de tipo ${tipo} para esta operación`);
+    }
+
+    // ─── Insertar pesada ─────────────────────────────────────
     const result = await client.query(
       `INSERT INTO pesada (
         operacion_id, tipo, peso, chofer_id, productor_id, 
         transporte_id, producto_id, vehiculo_patente, balancero, nro_remito, ruta, fotos
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *`,
+      RETURNING *`,
       [
-        operacion_id, tipo, peso,
-        chofer_id || null, productor_id || null,
-        transporte_id || null, producto_id || null,
-        vehiculo_patente, balancero || null,
+        operacion_id,
+        tipo,
+        peso,
+        chofer_id || null,
+        productor_id || null,
+        transporte_id || null,
+        producto_id || null,
+        vehiculo_patente,
+        balancero || null,
         nro_remito || null,
         req.file ? `documentos/${req.file.filename}` : null,
         fotos ? (typeof fotos === 'string' ? fotos : JSON.stringify(fotos)) : null
       ]
     );
+
+    // ─── Verificar si ya están BRUTO y TARA ──────────────────
+    const pesadas = await client.query(
+      'SELECT tipo, peso FROM pesada WHERE operacion_id = $1',
+      [operacion_id]
+    );
+
+    const tipos = pesadas.rows.map(p => p.tipo);
+
+    let neto = null;
+
+    if (tipos.includes('BRUTO') && tipos.includes('TARA')) {
+      const bruto = pesadas.rows.find(p => p.tipo === 'BRUTO')?.peso;
+      const tara = pesadas.rows.find(p => p.tipo === 'TARA')?.peso;
+
+      neto = bruto - tara;
+
+      // 👉 cerrar operación
+      await client.query(
+        'UPDATE operacion_pesaje SET abierta = false WHERE id = $1',
+        [operacion_id]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -144,10 +180,15 @@ export const createPesada = async (req, res) => {
       success: true,
       message: 'Pesada registrada exitosamente',
       data: result.rows[0],
+      neto // 👈 útil para frontend
     });
+
   } catch (error) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   } finally {
     client.release();
   }

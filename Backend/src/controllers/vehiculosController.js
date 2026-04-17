@@ -99,3 +99,33 @@ export const deleteVehiculo = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+export const getVehiculosParaSelect = async (req, res) => {
+  try {
+    console.log("--- Intentando cargar lista para select ---");
+    
+    const result = await pool.query(`
+      SELECT id, patente 
+      FROM vehiculo 
+      WHERE activo = true 
+      ORDER BY patente ASC
+    `);
+
+    console.log("Datos obtenidos de la DB:", result.rows.length, "registros");
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    // ESTE LOG ES EL MÁS IMPORTANTE
+    console.error('ERROR CRÍTICO EN getVehiculosParaSelect:', error);
+    
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      stack: error.stack // Esto te dirá la línea exacta del error
+    });
+  }
+};
