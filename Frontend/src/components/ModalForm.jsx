@@ -69,6 +69,7 @@ const ModalForm = React.memo(({
               type={campo.type}
               placeholder={campo.placeholder}
               disabled={loading}
+              options={campo.options || []}
             />
           ))}
         </div>

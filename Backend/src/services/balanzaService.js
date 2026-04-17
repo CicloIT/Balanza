@@ -64,9 +64,9 @@ const crearSocket = () => {
             const parts = clean.split('|').map(p => p.replace(/^:/, '').trim());
             console.log('⚖️  Campos parseados:', parts);
 
-            // El peso siempre está en el campo índice 2 (e.g. "000060" → 60 kg)
+            // El peso siempre está en el campo índice 2 (e.g. "000060" → 60 kg, o "-00020" -> -20 kg)
             const rawWeight = parts[2];
-            const weight = rawWeight !== undefined && /^\d+$/.test(rawWeight)
+            const weight = rawWeight !== undefined && /^-?\d+$/.test(rawWeight)
                 ? parseInt(rawWeight, 10)
                 : null;
 
