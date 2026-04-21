@@ -25,7 +25,7 @@ function getAuthHeaders() {
   return headers;
 }
 
-export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
+export function usePesadasInfinite(enabled = true, refreshTrigger = 0, sentidoFilter = null, fechaFilter = null, mesFilter = null, anioFilter = null) {
   const [items,   setItems]   = useState([]);
   const [page,    setPage]    = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -47,7 +47,11 @@ export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
     setError(null);
 
     try {
-      const url = `${API_BASE_URL}/api/pesadas/agrupadas?page=${pageNum}&limit=${PAGE_SIZE}`;
+      let url = `${API_BASE_URL}/api/pesadas/agrupadas?page=${pageNum}&limit=${PAGE_SIZE}`;
+      if (sentidoFilter) url += `&sentido=${encodeURIComponent(sentidoFilter)}`;
+      if (anioFilter) url += `&anio=${encodeURIComponent(anioFilter)}`;
+      if (mesFilter) url += `&mes=${encodeURIComponent(mesFilter)}`;
+      if (!anioFilter && fechaFilter) url += `&fecha=${encodeURIComponent(fechaFilter)}`;
       const res = await fetch(url, { headers: getAuthHeaders() });
 
       if (!res.ok) {
@@ -82,7 +86,7 @@ export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
       setLoadingMore(false);
       fetchingRef.current = false;
     }
-  }, []);
+  }, [sentidoFilter, fechaFilter, mesFilter, anioFilter]);
 
   // Control de tiempo y duplicados
   const lastFetchRef   = useRef(0);
@@ -90,14 +94,14 @@ export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
 
   // Initial load
   useEffect(() => {
-    if (enabled && items.length === 0 && !loading && !fetchingRef.current) {
+    if (enabled && items.length === 0 && !loading && !fetchingRef.current && hasMore) {
       loadedPagesRef.current.clear();
       loadedPagesRef.current.add(1);
       fetchPage(1, false);
     }
-  }, [enabled, fetchPage, items.length, loading]);
+  }, [enabled, fetchPage, items.length, loading, hasMore]);
 
-  // Refresh when trigger changes
+  // Refresh when trigger or sentidoFilter changes
   useEffect(() => {
     if (enabled && refreshTrigger > 0) {
       setItems([]);
@@ -109,6 +113,32 @@ export function usePesadasInfinite(enabled = true, refreshTrigger = 0) {
       fetchPage(1, false);
     }
   }, [enabled, refreshTrigger, fetchPage]);
+
+  // Reset when any filter changes
+  const prevSentidoRef = useRef(sentidoFilter);
+  const prevFechaRef = useRef(fechaFilter);
+  const prevMesRef = useRef(mesFilter);
+  const prevAnioRef = useRef(anioFilter);
+  useEffect(() => {
+    if (
+      prevSentidoRef.current !== sentidoFilter ||
+      prevFechaRef.current !== fechaFilter ||
+      prevMesRef.current !== mesFilter ||
+      prevAnioRef.current !== anioFilter
+    ) {
+      prevSentidoRef.current = sentidoFilter;
+      prevFechaRef.current = fechaFilter;
+      prevMesRef.current = mesFilter;
+      prevAnioRef.current = anioFilter;
+      setItems([]);
+      setPage(1);
+      setHasMore(true);
+      setError(null);
+      loadedPagesRef.current.clear();
+      loadedPagesRef.current.add(1);
+      if (enabled) fetchPage(1, false);
+    }
+  }, [enabled, sentidoFilter, fechaFilter, mesFilter, anioFilter, fetchPage]);
 
   // Load next page
   const loadMore = useCallback(() => {

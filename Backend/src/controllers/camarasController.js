@@ -2,6 +2,7 @@ import DigestFetch from "digest-fetch";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import pool from "../config/database.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,37 +14,63 @@ if (!fs.existsSync(CAPTURAS_DIR)) {
     fs.mkdirSync(CAPTURAS_DIR, { recursive: true });
 }
 
+const obtenerConfigGrabadora = async () => {
+    try {
+        const query = `
+        SELECT ip,usuario,contraseña AS password
+        FROM  configuracion_dispositivos
+        WHERE tipo_dispositivo = 'grabadora'       
+        `
+        const result = await pool.query(query);
+        if (!result.rows || result.rows.length === 0) {
+            throw new Error("No hay configuración de grabadora");
+        }
+        return result.rows[0];
+    } catch (error) {
+        console.error("Error al obtener configuración de la grabadora:", error);
+        throw error;
+    }
+}
+
+const crearClienteNVR = async () => {
+    const { ip, usuario, password } = await obtenerConfigGrabadora();
+    const client = new DigestFetch(usuario, password);
+    return {
+        client,
+        ip
+    }
+}
+
+/*
 const clientNVR = new DigestFetch("admin", "Camaras24.LC");
 const NVR_IP = "192.168.52.66";
-
+*/
 // Cache de canales para no sobrecargar el NVR
 let cacheCanales = null;
 let ultimaDeteccion = 0;
 const CACHE_DURATION = 1000 * 60 * 1; // 1 minuto (temporal para testeo rápido)
 
-const detectarCanalesActivos = async () => {
+const detectarCanalesActivos = async (client, ip) => {
     const ahora = Date.now();
     if (cacheCanales && (ahora - ultimaDeteccion < CACHE_DURATION)) {
         return cacheCanales;
     }
 
     console.log("🔍 Detectando canales activos en NVR...");
-    const maxCanales = 8; // Probamos los primeros 8 por eficiencia
-    const canalesEncontrados = [];
+    const maxCanales = 8;
 
-    // Función interna para probar un canal individual
     const probarCanal = async (ch) => {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000); // Timeout corto para detección
+        const timeout = setTimeout(() => controller.abort(), 3000);
 
         try {
-            const response = await clientNVR.fetch(
-                `https://${NVR_IP}/cgi-bin/snapshot.cgi?channel=${ch}`,
+            const response = await client.fetch(
+                `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
                 { signal: controller.signal }
             );
+
             clearTimeout(timeout);
-            
-            // Si el NVR responde con 200 y el buffer es razonable, el canal está activo
+
             if (response.ok) {
                 const buffer = await response.arrayBuffer();
                 if (buffer.byteLength > 1000) {
@@ -51,30 +78,32 @@ const detectarCanalesActivos = async () => {
                 }
             }
         } catch (e) {
-            // Error o timeout, asumimos canal no disponible
+            // ignorar errores
         }
+
         return null;
     };
 
-    // Probamos en paralelo
     const resultados = await Promise.all(
         Array.from({ length: maxCanales }, (_, i) => probarCanal(i + 1))
     );
 
-    const activos = resultados.filter(ch => ch !== null);
-    
-    // Si no detectó nada, por seguridad devolvemos un fallback (canal 1)
+    const activos = resultados.filter(Boolean);
+
     const finalActivos = activos.length > 0 ? activos : [1];
-    
+
     cacheCanales = finalActivos;
     ultimaDeteccion = ahora;
+
     console.log(`✅ Canales detectados: ${finalActivos.join(", ")}`);
+
     return finalActivos;
 };
 
 export const getConfig = async (req, res) => {
     try {
-        const canales = await detectarCanalesActivos();
+        const { client, ip } = await crearClienteNVR();
+        const canales = await detectarCanalesActivos(client, ip);
         res.json({ success: true, canales });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -90,7 +119,8 @@ export const capturarTodo = async (req, res) => {
         fs.mkdirSync(patenteDir, { recursive: true });
     }
 
-    const canales = await detectarCanalesActivos();
+    const { client, ip } = await crearClienteNVR();
+    const canales = await detectarCanalesActivos(client, ip);
     const archivos = [];
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
 
@@ -102,8 +132,8 @@ export const capturarTodo = async (req, res) => {
             const timeout = setTimeout(() => controller.abort(), 15000);
 
             try {
-                const response = await clientNVR.fetch(
-                    `https://${NVR_IP}/cgi-bin/snapshot.cgi?channel=${ch}`,
+                const response = await client.fetch(
+                    `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
                     { signal: controller.signal }
                 );
                 clearTimeout(timeout);
@@ -150,3 +180,13 @@ export const capturarTodo = async (req, res) => {
     }
 };
 
+
+export const limpiarCache = (req, res) => {
+    cacheCanales = null;
+    ultimaDeteccion = 0;
+
+    res.json({
+        success: true,
+        message: "Cache limpiado"
+    });
+};

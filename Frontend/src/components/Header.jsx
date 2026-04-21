@@ -163,11 +163,6 @@ export default function Header({ activeTab, onTabChange, tabs }) {
       >
         <span className={isActive ? 'text-white' : isDark ? 'text-slate-500' : 'text-slate-400'}>{icon}</span>
         {label}
-        {tab.count !== null && tab.count !== undefined && (
-          <span className={`min-w-[18px] h-[17px] px-1 rounded-md text-[10px] font-black flex items-center justify-center ${
-            isActive ? 'bg-white/25 text-white' : isDark ? 'bg-white/8 text-slate-500' : 'bg-slate-200 text-slate-400'
-          }`}>{tab.count}</span>
-        )}
       </button>
     );
   };
@@ -339,11 +334,6 @@ export default function Header({ activeTab, onTabChange, tabs }) {
                           }`}>
                           <span className={isActive ? 'text-white' : isDark ? 'text-slate-500' : 'text-slate-400'}>{icon}</span>
                           <span className="flex-1 text-left">{label}</span>
-                          {tab.count !== null && tab.count !== undefined && (
-                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
-                              isActive ? 'bg-white/25 text-white' : isDark ? 'bg-white/8 text-slate-500' : 'bg-slate-200 text-slate-500'
-                            }`}>{tab.count}</span>
-                          )}
                           {isActive && <ChevronRight size={13} className="text-white/70" />}
                         </button>
                       );

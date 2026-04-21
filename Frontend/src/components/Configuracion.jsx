@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Download, Play, Calendar, CheckCircle2, AlertCircle, RefreshCw, FileArchive, ShieldCheck, Clock } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
-
+import DispositivosConfig from './DispositivosConfig';
 const API_BASE_URL = '';
 const STORAGE_KEY = 'balanza_user';
 
@@ -50,18 +50,18 @@ export default function Configuracion() {
 
   const handleCreateBackup = async () => {
     if (!window.confirm('¿Desea iniciar un respaldo completo ahora? Esto puede demorar unos segundos.')) return;
-    
+
     try {
       setCreating(true);
       setError(null);
       setSuccess(null);
-      
+
       const res = await fetch(`${API_BASE_URL}/api/backup/trigger`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
       const data = await res.json();
-      
+
       if (data.success) {
         setSuccess(`Respaldo creado exitosamente: ${data.filename}`);
         fetchBackups();
@@ -81,9 +81,9 @@ export default function Configuracion() {
       const res = await fetch(`${API_BASE_URL}/api/backup/download/${filename}`, {
         headers
       });
-      
+
       if (!res.ok) throw new Error('No se pudo descargar el archivo');
-      
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -107,10 +107,17 @@ export default function Configuracion() {
 
   return (
     <div className="space-y-8 animate-fadeIn">
+
+      <div>
+        <h2 className={`text-xl font-black mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          Configuración de Dispositivos
+        </h2>
+        <DispositivosConfig />
+      </div>
+
       {/* Header Section */}
-      <div className={`backdrop-blur-xl rounded-3xl p-8 border transition-all shadow-2xl ${
-        isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white/80 border-slate-200'
-      }`}>
+      <div className={`backdrop-blur-xl rounded-3xl p-8 border transition-all shadow-2xl ${isDark ? 'bg-slate-800/40 border-slate-700/50' : 'bg-white/80 border-slate-200'
+        }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className={`p-4 rounded-2xl shadow-xl ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-500 text-white shadow-indigo-500/20'}`}>
@@ -124,9 +131,8 @@ export default function Configuracion() {
           <button
             onClick={handleCreateBackup}
             disabled={creating}
-            className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-lg transition-all shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 ${
-              isDark ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'
-            }`}
+            className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-lg transition-all shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'
+              }`}
           >
             {creating ? <RefreshCw className="animate-spin" size={24} /> : <Play size={24} />}
             {creating ? 'PROCESANDO...' : 'RESPALDAR AHORA'}
@@ -203,9 +209,8 @@ export default function Configuracion() {
                     </div>
                     <button
                       onClick={() => handleDownload(b.filename)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${
-                        isDark ? 'border-indigo-500/20 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white' : 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white'
-                      }`}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${isDark ? 'border-indigo-500/20 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white' : 'border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white'
+                        }`}
                     >
                       <Download size={16} /> Descargar
                     </button>

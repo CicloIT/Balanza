@@ -4,7 +4,7 @@ import pool from '../config/database.js';
 export const getChoferes = async (req, res) => {
   try {
     const query = `
-      SELECT id, codigo, apellido_nombre, tipo_documento, nro_documento, nacionalidad, activo, created_at
+      SELECT id, codigo, apellido_nombre, tipo_documento, nro_documento,cuit,nacionalidad, activo, created_at
       FROM chofer
       WHERE activo = true
       ORDER BY apellido_nombre ASC
@@ -29,7 +29,7 @@ export const getChoferById = async (req, res) => {
     const { id } = req.params;
     const query = 'SELECT * FROM chofer WHERE id = $1';
     const result = await pool.query(query, [id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -52,7 +52,7 @@ export const getChoferById = async (req, res) => {
 // Crear un nuevo chofer
 export const createChofer = async (req, res) => {
   try {
-    const { codigo, apellido_nombre, tipo_documento, nro_documento, nacionalidad } = req.body;
+    const { codigo, apellido_nombre, tipo_documento, nro_documento, cuit, nacionalidad } = req.body;
 
     // Validación básica
     if (!apellido_nombre) {
@@ -63,11 +63,11 @@ export const createChofer = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO chofer (codigo, apellido_nombre, tipo_documento, nro_documento, nacionalidad, activo)
-      VALUES ($1, $2, $3, $4, $5, true)
+      INSERT INTO chofer (codigo, apellido_nombre, tipo_documento, nro_documento, cuit, nacionalidad, activo)
+      VALUES ($1, $2, $3, $4, $5, $6, true)
       RETURNING *
     `;
-    const values = [codigo || null, apellido_nombre, tipo_documento || null, nro_documento || null, nacionalidad || null];
+    const values = [codigo || null, apellido_nombre, tipo_documento || null, nro_documento || null, cuit || null, nacionalidad || null];
     const result = await pool.query(query, values);
 
     res.status(201).json({
@@ -87,7 +87,7 @@ export const createChofer = async (req, res) => {
 export const updateChofer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo, apellido_nombre, tipo_documento, nro_documento, nacionalidad, activo } = req.body;
+    const { codigo, apellido_nombre, tipo_documento, nro_documento, cuit, nacionalidad, activo } = req.body;
 
     const query = `
       UPDATE chofer
@@ -95,13 +95,14 @@ export const updateChofer = async (req, res) => {
           apellido_nombre = COALESCE($2, apellido_nombre),
           tipo_documento = COALESCE($3, tipo_documento),
           nro_documento = COALESCE($4, nro_documento),
-          nacionalidad = COALESCE($5, nacionalidad),
-          activo = COALESCE($6, activo),
+          cuit = COALESCE($5, cuit),
+          nacionalidad = COALESCE($6, nacionalidad),
+          activo = COALESCE($7, activo),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $8
       RETURNING *
     `;
-    const values = [codigo, apellido_nombre, tipo_documento, nro_documento, nacionalidad, activo, id];
+    const values = [codigo, apellido_nombre, tipo_documento, nro_documento, cuit, nacionalidad, activo, id];
     const result = await pool.query(query, values);
 
     if (result.rows.length === 0) {

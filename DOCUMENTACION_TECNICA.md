@@ -90,7 +90,7 @@ El sistema sigue una arquitectura cliente-servidor con separación clara entre f
    Crear archivo `.env` en la raíz del backend:
    ```env
    DB_USER=postgres
-   DB_PASSWORD=tu_password
+   DB_PASSWORD=123
    DB_HOST=localhost
    DB_PORT=5432
    DB_NAME=Balanza
@@ -99,8 +99,8 @@ El sistema sigue una arquitectura cliente-servidor con separación clara entre f
    PORT=3000
 
    # Configuración de balanza
-   BALANZA_IP=192.168.1.100
-   BALANZA_PORT=3000
+   BALANZA_IP=192.168.1.100 (Se puede modificar)
+   BALANZA_PORT=3000  (Se puede modificar)
 
    # JWT Secret (generar uno seguro)
    JWT_SECRET=tu_jwt_secret_seguro

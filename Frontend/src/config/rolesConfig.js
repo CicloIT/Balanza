@@ -58,6 +58,7 @@ export const PERMISSIONS = {
   // Reportes
   REPORTES_VIEW: 'reportes:view',
   REPORTES_CREATE: 'reportes:create',
+  REPORTES_DELETE: 'reportes:delete',
 
   // Dashboard
   DASHBOARD_VIEW: 'dashboard:view',

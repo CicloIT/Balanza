@@ -77,3 +77,45 @@ export const getReporteById = async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+export const deleteReporte = async (req, res) => {
+  try {
+    let ids = [];
+
+    // 👉 Caso 1: viene por params (uno solo)
+    if (req.params.id) {
+      ids = [parseInt(req.params.id)];
+    }
+
+    // 👉 Caso 2: vienen varios en el body
+    if (Array.isArray(req.body.ids) && req.body.ids.length > 0) {
+      ids = req.body.ids.map(id => parseInt(id));
+    }
+
+    if (ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No se proporcionaron IDs'
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM reporte
+       WHERE id = ANY($1::int[])
+       RETURNING id`,
+      [ids]
+    );
+
+    res.json({
+      success: true,
+      eliminados: result.rowCount,
+      ids: result.rows.map(r => r.id)
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};

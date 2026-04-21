@@ -15,7 +15,6 @@ yarn-error.log*
 *.swp
 *.swo
 *~
-
 # OS
 .DS_Store
 Thumbs.db
@@ -28,3 +27,4 @@ backups/
 # Logs
 logs/
 *.log
+capturas/

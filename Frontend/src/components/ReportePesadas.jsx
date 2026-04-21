@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Printer, X, Loader2 } from 'lucide-react';
+import { Printer, X, Loader2, Truck } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
 
 const API_BASE_URL = '';
@@ -82,6 +82,7 @@ export default function ReportePesadas({ pesadas, onClose }) {
 export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando, errorGuardar, onClose, isDark: isDarkProp }) {
     const ctx = useThemeContext();
     const isDark = isDarkProp !== undefined ? isDarkProp : ctx.isDark;
+    const [paraCamionero, setParaCamionero] = useState(false);
 
     const formatP = (v) => v != null
         ? Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0 }) + ' kg'
@@ -98,7 +99,7 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
     const totalTara = pesadas.reduce((acc, p) => acc + (Number(p.tara) || 0), 0);
     const totalNeto = pesadas.reduce((acc, p) => acc + (Number(p.neto) || 0), 0);
 
-    const handlePrint = () => {
+    const handlePrint = (esCamionero) => {
         const nroLabel = numeroReporte
             ? `N° ${String(numeroReporte).padStart(6, '0')}`
             : '';
@@ -106,22 +107,93 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
         const filas = pesadas.map((p, i) => `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
         <td style="text-align:center;color:#94a3b8">${i + 1}</td>
+        <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span></td>
         <td style="font-family:monospace;font-weight:700">${p.vehiculo_patente || '—'}</td>
         <td>${formatF(p.fecha_entrada)}</td>
         <td>${formatF(p.fecha_salida)}</td>
         <td>${p.productor || '—'}</td>
-        <td>${p.transporte || '—'}</td>
         <td>${p.producto || '—'}</td>
         <td>${p.nro_remito || '—'}</td>
         <td style="font-weight:700;color:#15803d">${formatP(p.bruto)}</td>
         <td style="color:#475569">${formatP(p.tara)}</td>
-        <td style="font-weight:800;font-size:14px;color:#0e7490">${formatP(p.neto)}</td>
-        <td style="font-size:10px;color:#64748b">${p.balancero_entrada || p.balancero || '—'}</td>
-        <td style="font-size:10px;color:#64748b">${p.balancero_salida || '—'}</td>
+        <td style="font-weight:800;font-size:12px;color:#0e7490">${formatP(p.neto)}</td>
       </tr>
     `).join('');
 
-        const printWindow = window.open('', '_blank', 'width=1200,height=750');
+        const renderReporte = () => `
+      <div class="header">
+        <div>
+          <h1>Reporte de Pesadas</h1>
+          <div style="font-size:9px;color:#64748b;margin-top:4px">
+            Emisión: ${fechaEmision}
+          </div>
+        </div>
+        <div class="meta">
+          ${nroLabel ? `<strong>${nroLabel}</strong>` : ''}
+          <div style="margin-top:4px">
+            ${pesadas.length} pesada${pesadas.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Sentido</th>
+            <th>Dominio</th>
+            <th>Entrada Planta</th>
+            <th>Salida Planta</th>
+            <th>Productor</th>
+            <th>Producto</th>
+            <th>Remito</th>
+            <th>Bruto</th>
+            <th>Tara</th>
+            <th>Neto</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="8" style="text-align:right;font-size:9px">Totales</td>
+            <td>${totalBruto.toLocaleString('es-AR')} kg</td>
+            <td>${totalTara.toLocaleString('es-AR')} kg</td>
+            <td style="font-size:12px">${totalNeto.toLocaleString('es-AR')} kg</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="totales-boxes">
+        <div class="total-box bruto">
+          <div class="t-label">Bruto</div>
+          <div class="t-valor">${totalBruto.toLocaleString('es-AR')}</div>
+        </div>
+        <div class="total-box">
+          <div class="t-label">Tara</div>
+          <div class="t-valor">${totalTara.toLocaleString('es-AR')}</div>
+        </div>
+        <div class="total-box neto">
+          <div class="t-label">Neto</div>
+          <div class="t-valor">${totalNeto.toLocaleString('es-AR')}</div>
+        </div>
+      </div>
+
+      <div class="firmas">
+        <div class="firma-bloque">
+          <div class="firma-linea">
+            <p class="firma-titulo">Firma Responsable</p>
+          </div>
+        </div>
+        <div class="firma-bloque">
+          <div class="firma-linea">
+            <p class="firma-titulo">Conformidad</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+
         printWindow.document.write(`
       <!DOCTYPE html>
       <html lang="es">
@@ -130,95 +202,151 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
         <title>Reporte de Pesadas ${nroLabel}</title>
         <style>
           * { box-sizing:border-box; margin:0; padding:0; }
-          body { font-family:Arial,sans-serif; font-size:11px; color:#111; background:#fff; padding:10mm; }
 
-          .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #1e293b; padding-bottom:10px; margin-bottom:14px; }
-          .header h1 { font-size:20px; font-weight:900; letter-spacing:3px; text-transform:uppercase; color:#1e293b; }
-          .header .meta { text-align:right; font-size:10px; color:#64748b; line-height:1.6; }
-          .header .meta strong { font-size:16px; color:#1e293b; display:block; }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color:#111;
+            background:#fff;
+            padding:8mm;
+          }
 
-          table { width:100%; border-collapse:collapse; font-size:10px; }
-          thead tr { background:#1e293b; color:#fff; }
-          thead th { padding:7px 5px; text-align:left; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; white-space:nowrap; }
-          tbody td { padding:5px; border-bottom:1px solid #e2e8f0; vertical-align:middle; }
+          .header {
+            display:flex;
+            justify-content:space-between;
+            border-bottom:2px solid #1e293b;
+            margin-bottom:8px;
+            padding-bottom:6px;
+          }
 
-          tfoot tr { background:#f1f5f9; border-top:2px solid #1e293b; }
-          tfoot td { padding:7px 5px; font-weight:700; }
+          .header h1 {
+            font-size:14px;
+            font-weight:900;
+          }
 
-          .totales-boxes { display:flex; justify-content:flex-end; gap:16px; margin-top:14px; }
-          .total-box { text-align:center; border:2px solid #1e293b; border-radius:8px; padding:8px 16px; min-width:110px; }
-          .total-box .t-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#64748b; }
-          .total-box .t-valor { font-size:18px; font-family:'Courier New',monospace; font-weight:900; margin-top:3px; }
-          .total-box.neto .t-valor { color:#0e7490; }
-          .total-box.bruto .t-valor { color:#15803d; }
+          .meta {
+            text-align:right;
+            font-size:9px;
+          }
 
-          .firmas { display:grid; grid-template-columns:1fr 1fr 1fr; gap:30px; margin-top:36px; }
-          .firma-bloque { text-align:center; }
-          .firma-linea { border-top:1px solid #94a3b8; padding-top:5px; }
-          .firma-titulo { font-size:10px; font-weight:700; }
+          .meta strong {
+            font-size:12px;
+          }
 
-          @page { size:A4 landscape; margin:0; }
-          @media print { body { padding:8mm; } }
+          table {
+            width:100%;
+            border-collapse:collapse;
+            font-size:9px;
+          }
+
+          thead {
+            background:#1e293b;
+            color:#fff;
+          }
+
+          th, td {
+            padding:4px;
+            border-bottom:1px solid #ddd;
+            text-align:left;
+          }
+
+          tfoot {
+            background:#f1f5f9;
+            font-weight:bold;
+          }
+
+          .totales-boxes {
+            display:flex;
+            justify-content:flex-end;
+            gap:10px;
+            margin-top:8px;
+          }
+
+          .total-box {
+            border:1px solid #1e293b;
+            padding:4px 8px;
+            text-align:center;
+            min-width:70px;
+          }
+
+          .t-label {
+            font-size:8px;
+          }
+
+          .t-valor {
+            font-size:12px;
+            font-weight:bold;
+          }
+
+          .firmas {
+            display:flex;
+            justify-content:space-between;
+            margin-top:16px;
+          }
+
+          .firma-linea {
+            border-top:1px solid #000;
+            width:120px;
+            text-align:center;
+            font-size:9px;
+            margin-top:10px;
+          }
+
+          /* 🔥 DUPLICADO */
+          .page {
+            height:48%;
+          }
+
+          .cut-line {
+            position: relative;
+            top: -30px;
+            border-top:2px dashed #000;
+            margin:6px 0;
+          }
+
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+
+          @media print {
+            body {
+              height:100vh;
+              display:flex;
+              flex-direction:column;
+            }
+
+            .page {
+              height:50%;
+            }
+          }
         </style>
       </head>
+
       <body>
-        <div class="header">
-          <div>
-            <h1>Reporte de Pesadas</h1>
-            <div style="font-size:10px;color:#64748b;margin-top:4px">Emisión: ${fechaEmision}</div>
-          </div>
-          <div class="meta">
-            ${nroLabel ? `<strong>${nroLabel}</strong>` : ''}
-            <div style="margin-top:4px">${pesadas.length} pesada${pesadas.length !== 1 ? 's' : ''}</div>
-          </div>
+
+        <div class="page">
+          ${renderReporte()}
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>Dominio</th><th>Entrada</th><th>Salida</th>
-              <th>Productor</th><th>Transporte</th><th>Producto</th><th>Remito</th>
-              <th>Bruto</th><th>Tara</th><th>Neto</th><th>Op. Entrada</th><th>Op. Salida</th>
-            </tr>
-          </thead>
-          <tbody>${filas}</tbody>
-          <tfoot>
-            <tr>
-              <td colspan="8" style="text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#475569">Totales</td>
-              <td style="color:#15803d">${totalBruto.toLocaleString('es-AR')} kg</td>
-              <td style="color:#475569">${totalTara.toLocaleString('es-AR')} kg</td>
-              <td style="color:#0e7490;font-size:13px">${totalNeto.toLocaleString('es-AR')} kg</td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-
-        <div class="totales-boxes">
-          <div class="total-box bruto">
-            <div class="t-label">Total Bruto</div>
-            <div class="t-valor">${totalBruto.toLocaleString('es-AR')} kg</div>
-          </div>
-          <div class="total-box">
-            <div class="t-label">Total Tara</div>
-            <div class="t-valor">${totalTara.toLocaleString('es-AR')} kg</div>
-          </div>
-          <div class="total-box neto">
-            <div class="t-label">Total Neto</div>
-            <div class="t-valor">${totalNeto.toLocaleString('es-AR')} kg</div>
-          </div>
+        ${esCamionero ? `
+        <div class="cut-line"></div>
+        <div class="page">
+          ${renderReporte()}
         </div>
+        ` : ''}
 
-        <div class="firmas">
-          <div class="firma-bloque"><div class="firma-linea"><p class="firma-titulo">Firma Responsable</p></div></div>
-          <div class="firma-bloque"><div class="firma-linea"><p class="firma-titulo">Conformidad</p></div></div>
-          <div class="firma-bloque"><div class="firma-linea"><p class="firma-titulo">Sello y Firma</p></div></div>
-        </div>
       </body>
       </html>
     `);
+
         printWindow.document.close();
         printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 500);
     };
 
     return (
@@ -257,13 +385,38 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                             {pesadas.length} pesada{pesadas.length !== 1 ? 's' : ''} · {fechaEmision}
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-3">
+                        {/* Toggle Para Camionero */}
                         <button
-                            onClick={handlePrint}
+                            onClick={() => setParaCamionero(v => !v)}
+                            title={paraCamionero ? 'Modo camionero: imprime copia doble' : 'Modo estándar: imprime una copia'}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border font-semibold text-sm transition-all ${
+                                paraCamionero
+                                    ? isDark
+                                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                                        : 'bg-amber-50 border-amber-400 text-amber-700'
+                                    : isDark
+                                        ? 'bg-white/5 border-white/15 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+                                        : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                            }`}
+                        >
+                            <Truck size={15} />
+                            <span>Reporte Interno</span>
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] font-black ${
+                                !paraCamionero
+                                    ?isDark ? 'border-slate-500' : 'border-slate-300'                                     
+                                    : 'bg-amber-500 border-amber-500 text-white'
+                            }`}>
+                                {paraCamionero ? '✓' : ''}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => handlePrint(!paraCamionero)}
                             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all"
                         >
                             <Printer size={18} />
-                            Imprimir
+                            Imprimir{!paraCamionero ? ' (×2)' : ''}
                         </button>
                         <button onClick={onClose} className={`p-2 rounded-lg transition-all ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
                             }`}>
@@ -277,7 +430,7 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                     <table className="w-full text-xs">
                         <thead>
                             <tr className={isDark ? 'bg-slate-700' : 'bg-slate-800'}>
-                                {['#', 'Dominio', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Op. Entrada', 'Op. Salida'].map(h => (
+                                {['#', 'Sentido', 'Dominio', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Balancero'].map(h => (
                                     <th key={h} className="px-3 py-3 text-left text-white font-bold uppercase tracking-wide text-[10px] whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
@@ -289,6 +442,12 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                     : i % 2 === 0 ? 'border-slate-100' : 'bg-slate-50 border-slate-100'
                                     }`}>
                                     <td className={`px-3 py-2.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{i + 1}</td>
+                                    <td className="px-3 py-2.5">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.sentido === 'SALIDA'
+                                        ? isDark ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-100 text-orange-700'
+                                        : isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+                                      }`}>{p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>
+                                    </td>
                                     <td className={`px-3 py-2.5 font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.vehiculo_patente}</td>
                                     <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_entrada)}</td>
                                     <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_salida)}</td>
@@ -299,14 +458,13 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                     <td className={`px-3 py-2.5 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{formatP(p.bruto)}</td>
                                     <td className={`px-3 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatP(p.tara)}</td>
                                     <td className={`px-3 py-2.5 font-bold text-sm ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{formatP(p.neto)}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero_entrada || p.balancero || '—'}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero_salida || '—'}</td>
+                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero || '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
                         <tfoot>
                             <tr className={`border-t-2 ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-100 border-slate-300'}`}>
-                                <td colSpan={8} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                <td colSpan={9} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                     Totales
                                 </td>
                                 <td className={`px-3 py-3 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{totalBruto.toLocaleString('es-AR')} kg</td>

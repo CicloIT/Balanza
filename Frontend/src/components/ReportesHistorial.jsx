@@ -38,7 +38,14 @@ export default function ReportesHistorial() {
     const [reportes, setReportes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [reporteAbierto, setReporteAbierto] = useState(null); // reporte completo para preview
+    const [reporteAbierto, setReporteAbierto] = useState(null);
+    const [fechaFiltro, setFechaFiltro] = useState(null);
+    const [mesFiltro, setMesFiltro] = useState(null);
+    const [anioFiltro, setAnioFiltro] = useState(null);
+    const [seleccionados, setSeleccionados] = useState(new Set());
+    const anioActual = new Date().getFullYear();
+    const aniosDisponibles = Array.from({ length: anioActual - 2019 }, (_, i) => anioActual - i);
+    const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
     useEffect(() => {
         cargarReportes();
@@ -74,6 +81,39 @@ export default function ReportesHistorial() {
         }
     };
 
+    const toggleSeleccion = (id) => {
+        setSeleccionados(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const eliminarReportes = async (ids) => {
+        if (!ids.length) return;
+
+        const confirmacion = window.confirm(`¿Eliminar ${ids.length} reporte(s)?`);
+        if (!confirmacion) return;
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/reportes/delete-masivo`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ ids })
+            });
+
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            // 🔥 actualizar UI sin recargar
+            setReportes(prev => prev.filter(r => !ids.includes(r.id)));
+            setSeleccionados(new Set());
+
+        } catch (e) {
+            setError(e.message);
+        }
+    };
+
     const formatFecha = (v) => new Date(v).toLocaleString('es-AR', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
@@ -85,6 +125,19 @@ export default function ReportesHistorial() {
 
     const cardClass = `rounded-2xl border shadow-xl transition-all duration-300 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/80 border-slate-200'
         }`;
+
+    const now = new Date();
+    const reportesFiltrados = reportes.filter(r => {
+        const d = new Date(r.created_at);
+        // Filtro específico mes/año tiene prioridad
+        if (anioFiltro && mesFiltro) return d.getFullYear() === anioFiltro && (d.getMonth() + 1) === mesFiltro;
+        if (anioFiltro) return d.getFullYear() === anioFiltro;
+        if (!fechaFiltro) return true;
+        if (fechaFiltro === 'hoy') return d.toDateString() === now.toDateString();
+        if (fechaFiltro === 'mes') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        if (fechaFiltro === 'anio') return d.getFullYear() === now.getFullYear();
+        return true;
+    });
 
     return (
         <div className="space-y-6">
@@ -101,18 +154,65 @@ export default function ReportesHistorial() {
                                 Historial de Reportes
                             </h3>
                             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {reportes.length} reporte{reportes.length !== 1 ? 's' : ''} guardado{reportes.length !== 1 ? 's' : ''}
+                                {reportesFiltrados.length}{reportesFiltrados.length !== reportes.length ? ` de ${reportes.length}` : ''} reporte{reportesFiltrados.length !== 1 ? 's' : ''}
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={cargarReportes}
-                        className={`p-2 rounded-xl transition-all hover:scale-110 ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
-                            }`}
-                        title="Recargar"
-                    >
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Filtros de fecha */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {[
+                                { value: null, label: 'Todos' },
+                                { value: 'hoy', label: 'Hoy' },
+                                { value: 'mes', label: 'Este mes' },
+                                { value: 'anio', label: 'Este año' },
+                            ].map(f => (
+                                <button
+                                    key={f.value ?? 'todos'}
+                                    onClick={() => { setFechaFiltro(f.value); setMesFiltro(null); setAnioFiltro(null); }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${fechaFiltro === f.value && !anioFiltro
+                                        ? 'bg-indigo-600 text-white'
+                                        : isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                >{f.label}</button>
+                            ))}
+                            <div className={`w-px h-4 ${isDark ? 'bg-white/10' : 'bg-slate-300'}`} />
+                            <select value={mesFiltro ?? ''} onChange={e => { setMesFiltro(e.target.value ? parseInt(e.target.value) : null); setFechaFiltro(null); }}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold border outline-none ${isDark ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border-slate-300 text-slate-700'} ${mesFiltro ? 'border-indigo-500' : ''}`}>
+                                <option value="">Mes</option>
+                                {mesesNombres.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                            </select>
+                            <select value={anioFiltro ?? ''} onChange={e => { setAnioFiltro(e.target.value ? parseInt(e.target.value) : null); setFechaFiltro(null); }}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold border outline-none ${isDark ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border-slate-300 text-slate-700'} ${anioFiltro ? 'border-indigo-500' : ''}`}>
+                                <option value="">Año</option>
+                                {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                            {(mesFiltro || anioFiltro) && (
+                                <button onClick={() => { setMesFiltro(null); setAnioFiltro(null); }}
+                                    className={`px-2 py-1 rounded-lg text-xs font-bold ${isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-600'}`}>✕</button>
+                            )}
+                        </div>
+
+                        {seleccionados.size > 0 && (
+                            <button
+                                onClick={() => eliminarReportes(Array.from(seleccionados))}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${isDark
+                                    ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/40'
+                                    : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                                    }`}
+                            >
+                                Eliminar ({seleccionados.size})
+                            </button>
+                        )}
+
+                        <button
+                            onClick={cargarReportes}
+                            className={`p-2 rounded-xl transition-all hover:scale-110 ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                            title="Recargar"
+                        >
+                            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -132,7 +232,7 @@ export default function ReportesHistorial() {
                         <Loader2 className="animate-spin text-indigo-500" size={24} />
                         <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Cargando reportes...</span>
                     </div>
-                ) : reportes.length === 0 ? (
+                ) : reportesFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2 opacity-40">
                         <FileText size={40} />
                         <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -151,13 +251,21 @@ export default function ReportesHistorial() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {reportes.map((r, idx) => (
+                                {reportesFiltrados.map((r, idx) => (
                                     <tr
                                         key={r.id}
                                         className={`transition-all duration-200 border-b ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-slate-100 hover:bg-slate-50'
                                             }`}
                                         style={{ animation: `fadeInRow 0.2s ease-out ${idx * 0.03}s both` }}
                                     >
+
+                                        <td className="px-4 py-4">
+                                            <input
+                                                type="checkbox"
+                                                checked={seleccionados.has(r.id)}
+                                                onChange={() => toggleSeleccion(r.id)}
+                                            />
+                                        </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-lg font-mono font-bold text-sm ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-50 text-indigo-700'
                                                 }`}>

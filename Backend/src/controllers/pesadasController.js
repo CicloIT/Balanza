@@ -57,17 +57,17 @@ export const createPesada = async (req, res) => {
   try {
     await client.query('BEGIN');
     const {
-      vehiculo_patente, tipo, peso, chofer_id, productor_id,
+      vehiculo_patente, sentido, peso, chofer_id, productor_id,
       transporte_id, producto_id, balancero, nro_remito, es_manual, fotos
     } = req.body;
 
     // Validaciones
-    if (!vehiculo_patente || !tipo || !peso) {
-      return res.status(400).json({ success: false, error: 'Faltan campos requeridos (patente, tipo, peso)' });
+    if (!vehiculo_patente || !sentido || !peso) {
+      return res.status(400).json({ success: false, error: 'Faltan campos requeridos (patente, sentido, peso)' });
     }
 
-    if (!['BRUTO', 'TARA'].includes(tipo)) {
-      return res.status(400).json({ success: false, error: 'Tipo debe ser BRUTO o TARA' });
+    if (!['INGRESO', 'SALIDA'].includes(sentido)) {
+      return res.status(400).json({ success: false, error: 'Sentido debe ser INGRESO o SALIDA' });
     }
 
     if (peso <= 0) {
@@ -75,7 +75,6 @@ export const createPesada = async (req, res) => {
     }
 
     // Validación de permiso para carga manual
-    // Si es_manual es 'true' o true, verificar que el usuario tenga el permiso PESAJE_MANUAL
     if (es_manual === 'true' || es_manual === true) {
       const userRol = req.user?.rol;
       if (!hasPermission(userRol, PERMISSIONS.PESAJE_MANUAL)) {
@@ -92,32 +91,37 @@ export const createPesada = async (req, res) => {
 
     // Buscar operación abierta
     let operacionResult = await client.query(
-      'SELECT id FROM operacion_pesaje WHERE vehiculo_patente = $1 AND abierta = true',
+      'SELECT id, sentido FROM operacion_pesaje WHERE vehiculo_patente = $1 AND abierta = true',
       [vehiculo_patente]
     );
 
     let operacion_id;
+    let tipo;
 
     if (operacionResult.rows.length === 0) {
-      if (tipo === 'TARA') {
-        throw new Error('No se puede registrar TARA sin una pesada de BRUTO previa abierta');
-      }
-      // Crear nueva operación
+      // Nueva operación: tipo determinado por sentido
+      tipo = sentido === 'INGRESO' ? 'BRUTO' : 'TARA';
       const newOp = await client.query(
-        'INSERT INTO operacion_pesaje (vehiculo_patente) VALUES ($1) RETURNING id',
-        [vehiculo_patente]
+        'INSERT INTO operacion_pesaje (vehiculo_patente, sentido) VALUES ($1, $2) RETURNING id',
+        [vehiculo_patente, sentido]
       );
       operacion_id = newOp.rows[0].id;
     } else {
       operacion_id = operacionResult.rows[0].id;
 
-      // Verificar que no exista ya una pesada del mismo tipo para esta operación
+      // Determinar tipo faltante (opuesto al que ya existe)
       const pesadaExist = await client.query(
-        'SELECT id FROM pesada WHERE operacion_id = $1 AND tipo = $2',
-        [operacion_id, tipo]
+        'SELECT tipo FROM pesada WHERE operacion_id = $1',
+        [operacion_id]
       );
-      if (pesadaExist.rows.length > 0) {
-        throw new Error(`Ya existe una pesada de tipo ${tipo} para esta operación`);
+      if (pesadaExist.rows.length === 0) {
+        tipo = sentido === 'INGRESO' ? 'BRUTO' : 'TARA';
+      } else {
+        const tiposExistentes = pesadaExist.rows.map(r => r.tipo);
+        if (tiposExistentes.includes('BRUTO') && tiposExistentes.includes('TARA')) {
+          throw new Error('Esta operación ya tiene ambas pesadas registradas');
+        }
+        tipo = tiposExistentes.includes('BRUTO') ? 'TARA' : 'BRUTO';
       }
     }
 
@@ -240,49 +244,111 @@ export const updatePdfByOperacion = async (req, res) => {
 };
 
 export const deletePesada = async (req, res) => {
-  try {
+   try {
     const { id } = req.params;
 
-    // Obtener operacion_id antes de borrar
-    const pesada = await pool.query('SELECT operacion_id FROM pesada WHERE id = $1', [id]);
-    if (pesada.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Pesada no encontrada' });
+    const result = await pool.query(
+      'DELETE FROM operacion_pesaje WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Operación no encontrada'
+      });
     }
 
-    const operacionId = pesada.rows[0].operacion_id;
+    res.json({
+      success: true,
+      message: 'Operación eliminada correctamente'
+    });
 
-    // Borrar la pesada
-    await pool.query('DELETE FROM pesada WHERE id = $1', [id]);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
 
-    // Reabrir la operación si se borró una de sus pesadas
+export const deleteOperacionesMasivo = async (req, res) => {
+  try {
+    const { ids } = req.body; // array
+
     await pool.query(
-      "UPDATE operacion_pesaje SET abierta = true WHERE id = $1",
-      [operacionId]
+      'DELETE FROM operacion_pesaje WHERE id = ANY($1)',
+      [ids]
     );
 
     res.json({
       success: true,
-      message: 'Pesada eliminada exitosamente',
+      message: 'Operaciones eliminadas'
     });
+
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 };
 
 export const getPesadasAgrupadas = async (req, res) => {
   try {
-    const limit  = Math.min(parseInt(req.query.limit  ?? 20, 10), 100); // max 100 por página
-    const page   = Math.max(parseInt(req.query.page   ?? 1,  10), 1);
+    const limit = Math.min(parseInt(req.query.limit ?? 20, 10), 100);
+    const page = Math.max(parseInt(req.query.page ?? 1, 10), 1);
     const offset = (page - 1) * limit;
+    const sentidoFilter = req.query.sentido;
+    const fechaFilter = req.query.fecha;
+    const mesParam = parseInt(req.query.mes, 10);
+    const anioParam = parseInt(req.query.anio, 10);
 
-    // Total de operaciones (para saber si hay más páginas)
-    const countResult = await pool.query('SELECT COUNT(*) FROM operacion_pesaje');
+    const conditions = [];
+    const filterParams = [];
+
+    if (sentidoFilter && ['INGRESO', 'SALIDA'].includes(sentidoFilter)) {
+      filterParams.push(sentidoFilter);
+      conditions.push(`op.sentido = $${filterParams.length}`);
+    }
+
+    // Filtro específico mes+año tiene prioridad sobre fecha rápida
+    if (!isNaN(anioParam) && !isNaN(mesParam)) {
+      filterParams.push(anioParam);
+      conditions.push(`EXTRACT(YEAR FROM op.created_at) = $${filterParams.length}`);
+      filterParams.push(mesParam);
+      conditions.push(`EXTRACT(MONTH FROM op.created_at) = $${filterParams.length}`);
+    } else if (!isNaN(anioParam)) {
+      filterParams.push(anioParam);
+      conditions.push(`EXTRACT(YEAR FROM op.created_at) = $${filterParams.length}`);
+    } else if (!isNaN(mesParam)) {
+      filterParams.push(mesParam);
+      conditions.push(`EXTRACT(MONTH FROM op.created_at) = $${filterParams.length}`);
+    } else if (fechaFilter === 'hoy') {
+      conditions.push(`DATE(op.created_at) = CURRENT_DATE`);
+    } else if (fechaFilter === 'mes') {
+      conditions.push(`DATE_TRUNC('month', op.created_at) = DATE_TRUNC('month', CURRENT_DATE)`);
+    } else if (fechaFilter === 'anio') {
+      conditions.push(`EXTRACT(YEAR FROM op.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM operacion_pesaje op ${whereClause}`,
+      filterParams
+    );
     const total = parseInt(countResult.rows[0].count, 10);
 
-    console.log(`[API /pesadas/agrupadas] Req: Page=${page}, Limit=${limit}, Offset=${offset}`);
-    
+    console.log(`[API /pesadas/agrupadas] Req: Page=${page}, Limit=${limit}, Sentido=${sentidoFilter || '-'}, Fecha=${fechaFilter || '-'}`);
+
+    const mainParams = [...filterParams, limit, offset];
+    const limitIdx = mainParams.length - 1;
+    const offsetIdx = mainParams.length;
+
     const result = await pool.query(`
       SELECT op.id as id, op.id as operacion_id, op.vehiculo_patente,
+             op.sentido,
              MAX(CASE WHEN p.tipo::text = 'BRUTO' THEN p.peso END) as bruto,
              MAX(CASE WHEN p.tipo::text = 'TARA'  THEN p.peso END) as tara,
              MAX(p.neto) as neto,
@@ -303,19 +369,20 @@ export const getPesadasAgrupadas = async (req, res) => {
       LEFT JOIN producto  prod ON p.producto_id  = prod.id
       LEFT JOIN productor ptr  ON p.productor_id = ptr.id
       LEFT JOIN transporte tr  ON p.transporte_id = tr.id
-      GROUP BY op.id, op.vehiculo_patente, op.abierta
+      ${whereClause}
+      GROUP BY op.id, op.vehiculo_patente, op.abierta, op.sentido
       ORDER BY op.id DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
-    
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, mainParams);
+
     const hasMore = (result.rows.length === limit) && (offset + result.rows.length < total);
     console.log(`[API /pesadas/agrupadas] Result: Rows=${result.rows.length}, Total=${total}, hasMore=${hasMore}`);
 
 
     res.json({
       success: true,
-      data:    result.rows,
-      count:   result.rows.length,
+      data: result.rows,
+      count: result.rows.length,
       total,
       page,
       limit,
@@ -330,8 +397,9 @@ export const getPesadaActivaByPatente = async (req, res) => {
   try {
     const { patente } = req.params;
     const result = await pool.query(`
-      SELECT 
+      SELECT
         p.*,
+        op.sentido,
         c.apellido_nombre  AS chofer_nombre,
         prod.nombre        AS producto_nombre,
         ptr.nombre         AS productor_nombre,

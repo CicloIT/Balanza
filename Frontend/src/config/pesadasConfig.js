@@ -7,6 +7,7 @@ export const pesadasConfig = {
   columnasKeys: [
     'operacion_id',
     'vehiculo_patente',
+    'sentido',
     'bruto',
     'tara',
     'neto',
@@ -17,11 +18,12 @@ export const pesadasConfig = {
   columnasLabels: [
     'N° Op.',
     'Patente',
+    'Sentido',
     'Peso Bruto (kg)',
     'Peso Tara (kg)',
     'Peso Neto (kg)',
-    'Entrada',
-    'Salida',
+    'Entrada Planta',
+    'Salida Planta',
     'Estado'
   ],
   campos: [

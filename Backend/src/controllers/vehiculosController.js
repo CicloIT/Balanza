@@ -2,21 +2,28 @@ import pool from '../config/database.js';
 
 export const getVehiculos = async (req, res) => {
   try {
-    const limit  = Math.min(parseInt(req.query.limit  ?? 50, 10), 100);
+    const limit  = Math.min(parseInt(req.query.limit  ?? 50, 10), 9999);
     const page   = Math.max(parseInt(req.query.page   ?? 1,  10), 1);
     const offset = (page - 1) * limit;
+    const search = req.query.search?.trim() || null;
 
-    // Total de vehículos activos
-    const countResult = await pool.query('SELECT COUNT(*) FROM vehiculo WHERE activo = true');
+    const whereClause = search
+      ? `WHERE v.activo = true AND (v.patente ILIKE $3 OR v.tipo_vehiculo::text ILIKE $3 OR COALESCE(v.patente_acoplado,'') ILIKE $3)`
+      : `WHERE v.activo = true`;
+
+    const countParams = search ? [`%${search}%`] : [];
+    const countQuery  = `SELECT COUNT(*) FROM vehiculo v ${search ? `WHERE v.activo = true AND (v.patente ILIKE $1 OR v.tipo_vehiculo::text ILIKE $1 OR COALESCE(v.patente_acoplado,'') ILIKE $1)` : 'WHERE v.activo = true'}`;
+    const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count, 10);
 
+    const queryParams = search ? [limit, offset, `%${search}%`] : [limit, offset];
     const result = await pool.query(`
       SELECT v.id, v.patente, v.patente_acoplado, v.tipo_vehiculo, v.activo, v.observaciones, v.created_at
       FROM vehiculo v
-      WHERE v.activo = true
+      ${whereClause}
       ORDER BY v.patente ASC
       LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+    `, queryParams);
 
     const hasMore = (result.rows.length === limit) && (offset + result.rows.length < total);
 
@@ -97,5 +104,35 @@ export const deleteVehiculo = async (req, res) => {
     res.json({ success: true, message: 'Vehículo eliminado', data: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const getVehiculosParaSelect = async (req, res) => {
+  try {
+    console.log("--- Intentando cargar lista para select ---");
+    
+    const result = await pool.query(`
+      SELECT id, patente 
+      FROM vehiculo 
+      WHERE activo = true 
+      ORDER BY patente ASC
+    `);
+
+    console.log("Datos obtenidos de la DB:", result.rows.length, "registros");
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    // ESTE LOG ES EL MÁS IMPORTANTE
+    console.error('ERROR CRÍTICO EN getVehiculosParaSelect:', error);
+    
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      stack: error.stack // Esto te dirá la línea exacta del error
+    });
   }
 };
