@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, X } from 'lucide-react';
 import Header from './components/Header';
 import ActionBar from './components/ActionBar';
 import TablaItems from './components/TablaItems';
@@ -48,12 +49,12 @@ export default function GestionApp() {
     if (hasModuleAccess(MODULES.PESADAS)) return MODULES.PESADAS;
     // Buscar el primer módulo disponible
     const availableModules = [
-      MODULES.CHOFERES, 
-      MODULES.PRODUCTORES, 
-      MODULES.PRODUCTOS, 
-      MODULES.TRANSPORTES, 
-      MODULES.VEHICULOS, 
-      MODULES.PROVINCIAS, 
+      MODULES.CHOFERES,
+      MODULES.PRODUCTORES,
+      MODULES.PRODUCTOS,
+      MODULES.TRANSPORTES,
+      MODULES.VEHICULOS,
+      MODULES.PROVINCIAS,
       MODULES.LOCALIDADES
     ];
     for (const module of availableModules) {
@@ -69,19 +70,88 @@ export default function GestionApp() {
   const transportes = useGestionAPI(transportesConfig, hasModuleAccess(MODULES.TRANSPORTES));
   const provincias = useGestionAPI(provinciasConfig, canEditModule(MODULES.PROVINCIAS));
   const localidades = useGestionAPI(localidadesConfig, canEditModule(MODULES.LOCALIDADES));
-  const vehiculos = useVehiculosInfinite(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS));
+  const [searchTerm, setSearchTerm] = useState('');
+  const vehiculos = useVehiculosInfinite(vehiculosConfig, hasModuleAccess(MODULES.VEHICULOS) && activeTab === MODULES.VEHICULOS, activeTab === MODULES.VEHICULOS ? searchTerm : '');
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [sentidoFiltro, setSentidoFiltro] = useState(null);
+  const [fechaFiltro, setFechaFiltro] = useState(null);
+  const [mesFiltro, setMesFiltro] = useState(null);
+  const [anioFiltro, setAnioFiltro] = useState(null);
 
-  const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS, refreshTrigger);
+  const pesadas = usePesadasInfinite(activeTab === MODULES.PESADAS, refreshTrigger, sentidoFiltro, fechaFiltro, mesFiltro, anioFiltro);
+
+  const anioActual = new Date().getFullYear();
+  const aniosDisponibles = Array.from({ length: anioActual - 2019 }, (_, i) => anioActual - i);
+  const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const [pesadaDetalle, setPesadaDetalle] = useState(null);
   const [pesadasReporte, setPesadasReporte] = useState(null);
 
+  useEffect(() => { setSearchTerm(''); }, [activeTab]);
+
+  const handleEliminarIndividual = async (id) => {
+  try {
+    const confirmacion = window.confirm('¿Eliminar este registro?');
+    if (!confirmacion) return;
+
+    const storedUser = JSON.parse(localStorage.getItem('balanza_user') || '{}');
+    const headers = {
+      ...(storedUser.id && { 'x-user-id': storedUser.id.toString() }),
+      ...(storedUser.username && { 'x-username': storedUser.username }),
+    };
+
+    const endpoint = activeTab === 'pesadas'
+      ? `/api/pesadas/operacion/${id}`
+      : `${currentConfig.endpoint}/${id}`;
+
+    const response = await fetch(endpoint, { method: 'DELETE', headers });
+    if (!response.ok) throw new Error('Error eliminando');
+
+    if (activeTab === 'pesadas') {
+      setRefreshTrigger(Date.now());
+    } else {
+      currentGestion.fetchItems?.();
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert('Error eliminando registro');
+  }
+};
+
+  const handleEliminarMultiples = async (ids) => {
+    try {
+      const confirmacion = window.confirm(`¿Eliminar ${ids.length} operaciones de pesaje?`);
+      if (!confirmacion) return;
+
+      const storedUser = JSON.parse(localStorage.getItem('balanza_user') || '{}');
+
+      const response = await fetch('/api/pesadas/operaciones/delete-masivo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storedUser.id && { 'x-user-id': storedUser.id.toString() }),
+          ...(storedUser.username && { 'x-username': storedUser.username }),
+        },
+        body: JSON.stringify({ ids })
+      });
+
+      if (!response.ok) throw new Error('Error eliminando');
+
+      // 🔥 refrescar lista SIN recargar toda la página
+      setRefreshTrigger(Date.now());
+
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando operaciones');
+    }
+  };
+
   const handleSubirPDF = async (e, id) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     if (!window.confirm(`¿Subir Carta de Porte para la operación de pesaje?`)) {
       e.target.value = '';
       return;
@@ -90,7 +160,7 @@ export default function GestionApp() {
     try {
       const formData = new FormData();
       formData.append('archivo', file);
-      
+
       const storedUser = JSON.parse(localStorage.getItem('balanza_user') || '{}');
       const headers = {};
       if (storedUser.id) headers['x-user-id'] = storedUser.id.toString();
@@ -102,9 +172,9 @@ export default function GestionApp() {
         headers,
         body: formData
       });
-      
+
       if (!response.ok) throw new Error('Error al subir el archivo');
-      
+
       window.location.reload();
     } catch (err) {
       console.error(err);
@@ -120,10 +190,24 @@ export default function GestionApp() {
   const currentGestion = gestionMap[activeTab];
   const currentConfig = configs[activeTab];
 
+  const SEARCHABLE_TABS = [MODULES.CHOFERES, MODULES.PRODUCTORES, MODULES.PRODUCTOS, MODULES.TRANSPORTES, MODULES.VEHICULOS];
+  const CLIENT_FILTER_TABS = [MODULES.CHOFERES, MODULES.PRODUCTORES, MODULES.PRODUCTOS, MODULES.TRANSPORTES, MODULES.VEHICULOS];
+
+  const filteredItems = useMemo(() => {
+    const items = currentGestion?.items || [];
+    if (!searchTerm || !CLIENT_FILTER_TABS.includes(activeTab)) return items;
+    const term = searchTerm.toLowerCase();
+    return items.filter(item =>
+      currentConfig?.columnasKeys?.some(key =>
+        String(item[key] ?? '').toLowerCase().includes(term)
+      )
+    );
+  }, [currentGestion?.items, searchTerm, currentConfig?.columnasKeys, activeTab]);
+
   // Tabs filtrados según permisos del usuario
   const tabs = useMemo(() => {
     const allTabs = [
-      { id: MODULES.DASHBOARD, label: 'Dashboard',     count: null },
+      { id: MODULES.DASHBOARD, label: 'Dashboard', count: null },
       { id: MODULES.CHOFERES, label: choferesConfig.label, count: choferes.items.length },
       { id: MODULES.PRODUCTORES, label: productoresConfig.label, count: productores.items.length },
       { id: MODULES.PRODUCTOS, label: productosConfig.label, count: productos.items.length },
@@ -131,9 +215,9 @@ export default function GestionApp() {
       { id: MODULES.PROVINCIAS, label: provinciasConfig.label, count: provincias.items.length },
       { id: MODULES.LOCALIDADES, label: localidadesConfig.label, count: localidades.items.length },
       { id: MODULES.VEHICULOS, label: vehiculosConfig.label, count: vehiculos.items.length },
-      { id: MODULES.PESADA, label: 'Nueva Pesada',    count: null },
+      { id: MODULES.PESADA, label: 'Nueva Pesada', count: null },
       { id: MODULES.PESADAS, label: pesadasConfig.label, count: pesadas.items.length },
-      { id: MODULES.REPORTES, label: 'Reportes',       count: null },
+      { id: MODULES.REPORTES, label: 'Reportes', count: null },
       { id: MODULES.CONFIGURACION, label: 'Configuración', count: null },
     ];
 
@@ -142,7 +226,7 @@ export default function GestionApp() {
       if ([MODULES.DASHBOARD, MODULES.PESADA, MODULES.PESADAS, MODULES.REPORTES, MODULES.CONFIGURACION].includes(tab.id)) {
         return hasModuleAccess(tab.id);
       }
-      
+
       // Para los demás (Maestros), solo mostrar si tiene permiso de escritura/edición
       // así cumplimos con "solo ver lo que puedo hacer"
       return canEditModule(tab.id);
@@ -259,21 +343,120 @@ export default function GestionApp() {
                 soloLectura={activeTab === 'pesadas'}
               />
 
+              {SEARCHABLE_TABS.includes(activeTab) && (
+                <div className={`px-4 py-3 border-b flex items-center gap-3 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                  <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'}`}>
+                    <Search size={16} className="opacity-40 flex-shrink-0" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      placeholder={`Buscar ${currentConfig?.plural?.toLowerCase() ?? ''}...`}
+                      className="bg-transparent border-none outline-none w-full text-sm"
+                    />
+                    {searchTerm && (
+                      <button onClick={() => setSearchTerm('')} className="flex-shrink-0 opacity-50 hover:opacity-100">
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                  {activeTab === MODULES.VEHICULOS && currentGestion.hasMore && (
+                    <button
+                      onClick={() => currentGestion.loadAll?.()}
+                      disabled={currentGestion.loading}
+                      className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/20 text-slate-300 hover:bg-white/10' : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'}`}
+                    >
+                      ↓ Cargar todos
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'pesadas' && (
+                <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 border-b ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                  {/* Sentido */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Sentido:</span>
+                    {[
+                      { value: null, label: 'Todos' },
+                      { value: 'INGRESO', label: '↓ Ingreso' },
+                      { value: 'SALIDA', label: '↑ Salida' },
+                    ].map(f => (
+                      <button key={f.value ?? 'ts'} onClick={() => setSentidoFiltro(f.value)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${sentidoFiltro === f.value
+                          ? f.value === 'SALIDA' ? 'bg-orange-500 text-white' : f.value === 'INGRESO' ? 'bg-blue-600 text-white' : isDark ? 'bg-white/20 text-white' : 'bg-slate-700 text-white'
+                          : isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>{f.label}</button>
+                    ))}
+                  </div>
+
+                  <div className={`w-px h-5 ${isDark ? 'bg-white/10' : 'bg-slate-300'}`} />
+
+                  {/* Fecha rápida */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Fecha:</span>
+                    {[
+                      { value: null, label: 'Todas' },
+                      { value: 'hoy', label: 'Hoy' },
+                      { value: 'mes', label: 'Este mes' },
+                      { value: 'anio', label: 'Este año' },
+                    ].map(f => (
+                      <button key={f.value ?? 'tf'} onClick={() => { setFechaFiltro(f.value); setMesFiltro(null); setAnioFiltro(null); }}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${fechaFiltro === f.value && !anioFiltro
+                          ? 'bg-emerald-600 text-white'
+                          : isDark ? 'bg-white/5 text-slate-400 hover:bg-white/10' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>{f.label}</button>
+                    ))}
+                  </div>
+
+                  <div className={`w-px h-5 ${isDark ? 'bg-white/10' : 'bg-slate-300'}`} />
+
+                  {/* Mes + Año específico */}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Específico:</span>
+                    <select
+                      value={mesFiltro ?? ''}
+                      onChange={e => { setMesFiltro(e.target.value ? parseInt(e.target.value) : null); setFechaFiltro(null); }}
+                      className={`px-2 py-1 rounded-lg text-xs font-bold border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-slate-200' : 'bg-white border-slate-300 text-slate-700'} ${anioFiltro || mesFiltro ? isDark ? 'border-emerald-500' : 'border-emerald-500' : ''}`}
+                    >
+                      <option value="">Mes</option>
+                      {mesesNombres.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                    </select>
+                    <select
+                      value={anioFiltro ?? ''}
+                      onChange={e => { setAnioFiltro(e.target.value ? parseInt(e.target.value) : null); setFechaFiltro(null); }}
+                      className={`px-2 py-1 rounded-lg text-xs font-bold border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-slate-200' : 'bg-white border-slate-300 text-slate-700'} ${anioFiltro ? isDark ? 'border-emerald-500' : 'border-emerald-500' : ''}`}
+                    >
+                      <option value="">Año</option>
+                      {aniosDisponibles.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                    {(mesFiltro || anioFiltro) && (
+                      <button onClick={() => { setMesFiltro(null); setAnioFiltro(null); }}
+                        className={`px-2 py-1 rounded-lg text-xs font-bold ${isDark ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>✕</button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {currentGestion.loading ? (
                 <div className="flex items-center justify-center p-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: isDark ? '#06b6d4' : '#0ea5e9' }}></div>
                 </div>
-              ) : currentGestion.items.length > 0 ? (
+              ) : filteredItems.length > 0 || (searchTerm && currentGestion.items.length > 0) ? (
                 <div className="overflow-hidden">
+                  {searchTerm && filteredItems.length === 0 ? (
+                    <EmptyState mensaje={`Sin resultados para "${searchTerm}"`} icono="🔍" />
+                  ) : (
                   <TablaItems
-                    items={currentGestion.items}
+                    items={filteredItems}
                     tipo={activeTab}
                     columnasKeys={currentConfig.columnasKeys}
                     columnasLabels={currentConfig.columnasLabels}
                     onEditar={currentGestion.abrirModal}
-                    onEliminar={currentGestion.eliminarItem}
+                    onEliminar={handleEliminarIndividual}
                     onToggleEstado={currentGestion.toggleEstado}
                     onSubirPDF={handleSubirPDF}
+                    onEliminarMultiples={handleEliminarMultiples}
                     onGenerarReporte={setPesadasReporte}
                     onVerDetalles={setPesadaDetalle}
                     soloLectura={activeTab === 'pesadas'}
@@ -281,6 +464,7 @@ export default function GestionApp() {
                     loadMore={currentGestion.loadMore}
                     loadingMore={currentGestion.loadingMore}
                   />
+                  )}
                 </div>
               ) : (
                 <EmptyState
@@ -328,6 +512,12 @@ export default function GestionApp() {
           onClose={() => setPesadaDetalle(null)}
         />
       )}
+
+      <footer className={`relative z-10 mt-8 pb-6 text-center text-xs space-y-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>
+        <p className="font-semibold">© 2026 CicloIT — Todos los derechos reservados</p>
+        <p>Diseñado y desarrollado por CicloIT</p>
+        <p className="font-mono">v1.0.1</p>
+      </footer>
 
       <style>{`
         @keyframes fadeIn {

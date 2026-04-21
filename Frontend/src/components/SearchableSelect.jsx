@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect, useMemo, memo, useCallback } from '
 import { ChevronDown, Search, X } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
 
-const SearchableSelect = memo(({ 
-  label, 
-  name, 
-  value, 
+const SearchableSelect = memo(({
+  label,
+  name,
+  value,
   options, // Array de objetos { id, nombre, patente, etc. }
-  onChange, 
+  onChange,
   placeholder = "Seleccionar...",
   displayKey = "nombre", // La propiedad que se muestra ("nombre", "patente", etc.)
   className = ""
@@ -20,7 +20,7 @@ const SearchableSelect = memo(({
 
   // Sincronizar searchTerm con el valor actual si es necesario y resetear paginación local
   useEffect(() => {
-    if (!isOpen) { 
+    if (!isOpen) {
       setSearchTerm('');
       setVisibleCount(50);
     }
@@ -75,9 +75,6 @@ const SearchableSelect = memo(({
   };
 
   const currentDisplayValue = useMemo(() => {
-    // Si el valor actual está en las opciones, mostramos el nombre
-    // Pero como PesadaForm usa el valor directamente como string (nombre/patente),
-    // simplemente devolvemos el valor actual.
     return value || '';
   }, [value]);
 
@@ -86,14 +83,13 @@ const SearchableSelect = memo(({
       <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
         {label}
       </label>
-      
-      <div 
+
+      <div
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl border cursor-pointer transition-all duration-300 ${
-          isDark 
-            ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-500' 
-            : 'bg-white border-slate-300 text-slate-900 hover:border-blue-400'
-        } ${isOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}
+        className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl border cursor-pointer transition-all duration-300 ${isDark
+          ? 'bg-slate-900 border-slate-700 text-white hover:border-slate-500'
+          : 'bg-white border-slate-300 text-slate-900 hover:border-blue-400'
+          } ${isOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}
       >
         <span className={!value ? 'opacity-40' : ''}>
           {currentDisplayValue || placeholder}
@@ -102,9 +98,8 @@ const SearchableSelect = memo(({
       </div>
 
       {isOpen && (
-        <div className={`absolute z-50 w-full mt-2 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
-          isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-        }`}>
+        <div className={`absolute z-50 w-full mt-2 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+          }`}>
           {/* Cámara de búsqueda interna */}
           <div className={`p-3 border-b ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
@@ -124,20 +119,20 @@ const SearchableSelect = memo(({
                 }}
               />
               {searchTerm && (
-                <X 
-                  size={16} 
-                  className="cursor-pointer opacity-50 hover:opacity-100" 
+                <X
+                  size={16}
+                  className="cursor-pointer opacity-50 hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSearchTerm('');
-                  }} 
+                  }}
                 />
               )}
             </div>
           </div>
 
           {/* Lista de opciones */}
-          <div 
+          <div
             className="max-h-[250px] overflow-y-auto custom-scrollbar"
             onScroll={handleScroll}
           >
@@ -146,11 +141,10 @@ const SearchableSelect = memo(({
                 <div
                   key={opt.id || idx}
                   onClick={() => handleSelect(opt[displayKey])}
-                  className={`px-4 py-3 cursor-pointer text-sm transition-colors ${
-                    value === opt[displayKey]
-                      ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'
-                      : isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-50 text-slate-700'
-                  }`}
+                  className={`px-4 py-3 cursor-pointer text-sm transition-colors ${value === opt[displayKey]
+                    ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'
+                    : isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-50 text-slate-700'
+                    }`}
                 >
                   {opt[displayKey]}
                 </div>

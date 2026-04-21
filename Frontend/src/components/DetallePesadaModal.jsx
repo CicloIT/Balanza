@@ -23,14 +23,13 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-md"
         onClick={onClose}
       />
-      
-      <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col transition-all transform animate-in zoom-in-95 duration-300 ${
-        isDark ? 'bg-slate-900 border border-white/10' : 'bg-white'
-      }`}>
+
+      <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col transition-all transform animate-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900 border border-white/10' : 'bg-white'
+        }`}>
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-white/10' : 'border-slate-100'}`}>
           <div className="flex items-center gap-4">
@@ -42,15 +41,14 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
                 Detalle de Operación #{item.operacion_id || item.id}
               </h2>
               <p className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                {item.vehiculo_patente} — {item.abierta ? 'PENDIENTE TARA' : 'OPERACIÓN COMPLETADA'}
+                {item.vehiculo_patente} — {item.sentido || '—'} — {item.abierta ? 'PENDIENTE' : 'COMPLETADA'}
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-90 ${
-              isDark ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
-            }`}
+            className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-90 ${isDark ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+              }`}
           >
             <X size={24} />
           </button>
@@ -59,7 +57,7 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            
+
             {/* Columna Izquierda: Información General */}
             <div className="space-y-8">
               <section>
@@ -67,6 +65,7 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
                   <Info size={14} /> Información de Carga
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
+                  <DetailItem icon={Info} label="Sentido" value={item.sentido} isDark={isDark} />
                   <DetailItem icon={Truck} label="Transporte" value={item.transporte} isDark={isDark} />
                   <DetailItem icon={User} label="Chofer" value={item.chofer} isDark={isDark} />
                   <DetailItem icon={Package} label="Producto" value={item.producto} isDark={isDark} />
@@ -100,21 +99,20 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
                   <FileText size={14} /> Documentación
                 </h3>
                 {item.ruta ? (
-                   <a
-                     href={item.ruta.startsWith('documentos/') ? `/${item.ruta}` : `/documentos/${item.ruta}`}
-                     target="_blank" rel="noopener noreferrer"
-                     className={`flex items-center gap-4 p-4 rounded-2xl border transition-all hover:scale-[1.02] ${
-                       isDark ? 'bg-slate-800/50 border-white/10 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:bg-white hover:shadow-lg'
-                     }`}
-                   >
-                     <div className="p-3 bg-rose-500/20 text-rose-500 rounded-xl">
-                       <FileText size={24} />
-                     </div>
-                     <div className="flex-1">
-                       <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Carta de Porte / Remito</p>
-                       <p className="text-xs text-slate-500">Documento PDF Adjunto</p>
-                     </div>
-                   </a>
+                  <a
+                    href={item.ruta.startsWith('documentos/') ? `/${item.ruta}` : `/documentos/${item.ruta}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all hover:scale-[1.02] ${isDark ? 'bg-slate-800/50 border-white/10 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:bg-white hover:shadow-lg'
+                      }`}
+                  >
+                    <div className="p-3 bg-rose-500/20 text-rose-500 rounded-xl">
+                      <FileText size={24} />
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Carta de Porte / Remito</p>
+                      <p className="text-xs text-slate-500">Documento PDF Adjunto</p>
+                    </div>
+                  </a>
                 ) : (
                   <div className={`p-6 rounded-2xl border-2 border-dashed text-center ${isDark ? 'border-white/5 bg-white/2' : 'border-slate-100 bg-slate-50'}`}>
                     <p className="text-sm text-slate-500 font-medium italic">No hay documento PDF asociado</p>
@@ -134,10 +132,10 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
                       const canal = typeof foto === 'object' ? foto.canal : null;
                       return (
                         <div key={idx} className={`aspect-video rounded-2xl overflow-hidden border relative group ${isDark ? 'bg-slate-800 border-white/10' : 'bg-slate-100 border-slate-200'}`}>
-                          <img 
-                            src={`/capturas/${src}`} 
-                            alt={`Captura ${idx + 1}`} 
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                          <img
+                            src={`/capturas/${src}`}
+                            alt={`Captura ${idx + 1}`}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                           />
                           <div className="absolute top-2 left-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity">
                             {canal ? `CÁMARA ${canal}` : `CAPTURA ${idx + 1}`}
@@ -167,11 +165,10 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
         <div className={`p-6 border-t flex justify-end ${isDark ? 'border-white/10 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
           <button
             onClick={onClose}
-            className={`px-8 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 ${
-              isDark 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20' 
-                : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/20'
-            }`}
+            className={`px-8 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 ${isDark
+              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+              : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/20'
+              }`}
           >
             Cerrar Detalle
           </button>
@@ -183,9 +180,8 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
 
 function DetailItem({ icon: Icon, label, value, isDark }) {
   return (
-    <div className={`flex items-center gap-4 p-3 rounded-2xl border transition-all ${
-      isDark ? 'bg-slate-800/30 border-white/5 hover:bg-slate-800/50' : 'bg-white border-slate-100 hover:border-slate-200'
-    }`}>
+    <div className={`flex items-center gap-4 p-3 rounded-2xl border transition-all ${isDark ? 'bg-slate-800/30 border-white/5 hover:bg-slate-800/50' : 'bg-white border-slate-100 hover:border-slate-200'
+      }`}>
       <div className={`p-2 rounded-xl ${isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
         <Icon size={18} />
       </div>
@@ -201,9 +197,8 @@ function DetailItem({ icon: Icon, label, value, isDark }) {
 
 function WeightItem({ label, value, color, isLarge = false, isDark }) {
   return (
-    <div className={`p-4 rounded-2xl border transition-all ${
-      isDark ? 'bg-slate-800/30 border-white/5' : 'bg-slate-50 border-slate-100'
-    }`}>
+    <div className={`p-4 rounded-2xl border transition-all ${isDark ? 'bg-slate-800/30 border-white/5' : 'bg-slate-50 border-slate-100'
+      }`}>
       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
       <p className={`font-mono font-black ${isLarge ? 'text-3xl' : 'text-xl'} ${color}`}>
         {value != null ? Number(value).toLocaleString('es-AR') : '—'} <span className="text-sm opacity-50 ml-1">kg</span>

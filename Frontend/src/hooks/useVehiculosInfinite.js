@@ -18,7 +18,7 @@ function getAuthHeaders() {
   return headers;
 }
 
-export function useVehiculosInfinite(config, enabled = true) {
+export function useVehiculosInfinite(config, enabled = true, search = '') {
   const [items,   setItems]   = useState([]);
   const [page,    setPage]    = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -34,7 +34,7 @@ export function useVehiculosInfinite(config, enabled = true) {
 
   const fetchingRef = useRef(false);
 
-  const fetchPage = useCallback(async (pageNum, append = false) => {
+  const fetchPage = useCallback(async (pageNum, append = false, searchTerm = '') => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
@@ -44,7 +44,9 @@ export function useVehiculosInfinite(config, enabled = true) {
     setError(null);
 
     try {
-      const url = `${API_BASE_URL}${config.endpoint}?page=${pageNum}&limit=${PAGE_SIZE}`;
+      const params = new URLSearchParams({ page: pageNum, limit: PAGE_SIZE });
+      if (searchTerm) params.set('search', searchTerm);
+      const url = `${API_BASE_URL}${config.endpoint}?${params}`;
       const res = await fetch(url, { headers: getAuthHeaders() });
 
       if (!res.ok) {
@@ -81,14 +83,49 @@ export function useVehiculosInfinite(config, enabled = true) {
 
   const lastFetchRef   = useRef(0);
   const loadedPagesRef = useRef(new Set());
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (enabled && items.length === 0 && !loading && !fetchingRef.current) {
+    if (!enabled) {
+      fetchingRef.current = false;
+      initializedRef.current = false;
+      setItems([]);
+      setPage(1);
+      setHasMore(true);
+      setTotal(0);
+      loadedPagesRef.current.clear();
+      lastFetchRef.current = 0;
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (enabled && !initializedRef.current && !fetchingRef.current) {
+      initializedRef.current = true;
       loadedPagesRef.current.clear();
       loadedPagesRef.current.add(1);
-      fetchPage(1, false);
+      fetchPage(1, false, search);
     }
-  }, [enabled, fetchPage, items.length, loading]);
+  }, [enabled, fetchPage]);
+
+  const searchRef = useRef(search);
+  useEffect(() => {
+    if (!enabled) return;
+    const currentSearch = searchRef.current;
+    searchRef.current = search;
+    if (currentSearch === search) return;
+
+    fetchingRef.current = false;
+    initializedRef.current = true;
+    setLoading(false);
+    setLoadingMore(false);
+    setItems([]);
+    setPage(1);
+    setHasMore(true);
+    loadedPagesRef.current.clear();
+    loadedPagesRef.current.add(1);
+    lastFetchRef.current = 0;
+    fetchPage(1, false, search);
+  }, [search, enabled, fetchPage]);
 
   const loadMore = useCallback(() => {
     const now = Date.now();
@@ -105,8 +142,41 @@ export function useVehiculosInfinite(config, enabled = true) {
     
     lastFetchRef.current = now;
     loadedPagesRef.current.add(nextPage);
-    fetchPage(nextPage, true);
-  }, [hasMore, loadingMore, loading, page, fetchPage, total, items.length]);
+    fetchPage(nextPage, true, search);
+  }, [hasMore, loadingMore, loading, page, fetchPage, total, items.length, search]);
+
+  const reset = useCallback(() => {
+    fetchingRef.current = false;
+    initializedRef.current = false;
+    setItems([]);
+    setPage(1);
+    setHasMore(true);
+    setTotal(0);
+    loadedPagesRef.current.clear();
+    lastFetchRef.current = 0;
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ page: 1, limit: 9999 });
+      const url = `${API_BASE_URL}${config.endpoint}?${params}`;
+      const res = await fetch(url, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(res.statusText);
+      const json = await res.json();
+      setItems(json.data ?? []);
+      setHasMore(false);
+      setTotal(json.total ?? 0);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, [config.endpoint]);
 
   const abrirModal = useCallback((item = null) => {
     setModal({ abierto: true, item });
@@ -236,6 +306,8 @@ export function useVehiculosInfinite(config, enabled = true) {
     modal,
     formData,
     loadMore,
+    loadAll,
+    reset,
     abrirModal,
     cerrarModal,
     guardarItem,

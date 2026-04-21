@@ -48,6 +48,18 @@ function RenderCelda({ item, keyName, isDark }) {
     );
   }
 
+  if (keyName === 'sentido') {
+    const isIngreso = value === 'INGRESO';
+    return (
+      <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${isIngreso
+        ? isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
+        : isDark ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-100 text-orange-700'
+        }`}>
+        {isIngreso ? '↓ INGRESO' : '↑ SALIDA'}
+      </span>
+    );
+  }
+
   if (keyName === 'abierta') return (
     <span className={`px-2 py-0.5 rounded-lg font-semibold text-xs ${value
       ? isDark ? 'bg-yellow-500/30 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
@@ -69,11 +81,25 @@ function RenderCelda({ item, keyName, isDark }) {
     </span>
   );
 
-  if (keyName === 'neto') return (
-    <span className={`font-bold text-base ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
-      {Number(value).toLocaleString('es-AR', { maximumFractionDigits: 0 })} kg
-    </span>
-  );
+  if (keyName === 'neto') {
+    const numero = Number(value);
+    const esNegativo = numero < 0;
+
+    return (
+      <span
+        className={`font-bold text-base ${esNegativo
+          ? isDark
+            ? 'text-red-400'
+            : 'text-red-600'
+          : isDark
+            ? 'text-cyan-300'
+            : 'text-cyan-700'
+          }`}
+      >
+        {numero.toLocaleString('es-AR', { maximumFractionDigits: 0 })} kg
+      </span>
+    );
+  }
 
   if (keyName.includes('fecha') || ['created_at', 'updated_at'].includes(keyName))
     return <span className="font-mono text-xs whitespace-nowrap">{formatFecha(value)}</span>;
@@ -284,7 +310,7 @@ const CardItem = React.memo(({
               <Guard permissions={`${resourcePrefix}:delete`}>
                 <button onClick={() => onEliminar(item.id)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:scale-105 ${isDark ? 'bg-red-500/20 border-red-500/30 text-red-300' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                  <Trash2 size={13} /> Eliminar
+                  <Trash2 size={13} /> Eliminar 
                 </button>
               </Guard>
             </>
@@ -302,7 +328,7 @@ const CardItem = React.memo(({
 const TablaItems = React.memo(({
   items, tipo, columnasKeys, columnasLabels,
   onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles,
-  onGenerarReporte, soloLectura = false,
+  onGenerarReporte, onEliminarMultiples, soloLectura = false,
   hasMore, loadMore, loadingMore
 }) => {
   const { isDark } = useThemeContext();
@@ -338,6 +364,25 @@ const TablaItems = React.memo(({
       console.error('Error al generar reporte:', err);
     } finally {
       reporteEnProceso.current = false;
+    }
+  };
+
+  const handleEliminarSeleccionadas = async () => {
+    if (!seleccionadas.size) return;
+
+    const confirmacion = confirm(`¿Eliminar ${seleccionadas.size} operaciones?`);
+    if (!confirmacion) return;
+
+    try {
+      const ids = items
+        .filter(i => seleccionadas.has(i.id))
+        .map(i => i.id);
+
+      await onEliminarMultiples?.(ids);
+
+      setSeleccionadas(new Set());
+    } catch (err) {
+      console.error('Error eliminando:', err);
     }
   };
 
@@ -413,6 +458,22 @@ const TablaItems = React.memo(({
           >
             <FileText size={14} />
             {reporteEnProceso.current ? 'Generando…' : 'Reporte'}
+          </button>
+
+          <button
+            onClick={handleEliminarSeleccionadas}
+            disabled={!algunaSeleccionada}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-sm border transition-all active:scale-95 ${algunaSeleccionada
+                ? isDark
+                  ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/40 cursor-pointer'
+                  : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 cursor-pointer'
+                : 'opacity-30 cursor-not-allowed ' + (isDark
+                  ? 'bg-slate-700 border-slate-600 text-slate-500'
+                  : 'bg-slate-100 border-slate-200 text-slate-400')
+              }`}
+          >
+            <Trash2 size={14} />
+            Eliminar
           </button>
         </div>
       )}

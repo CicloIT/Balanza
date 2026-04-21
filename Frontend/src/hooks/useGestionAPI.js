@@ -213,5 +213,6 @@ export function useGestionAPI(config, enabled = true) {
     eliminarItem,
     toggleEstado,
     handleFormChange,
+    fetchItems: cargarItems,
   };
 }

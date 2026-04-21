@@ -9,6 +9,7 @@ import {
   getPesadasAgrupadas,
   updatePdfByOperacion,
   getPesadaActivaByPatente,
+  deleteOperacionesMasivo
 } from '../controllers/pesadasController.js';
 import { requireAuth, requirePermission, optionalAuth } from '../middleware/authMiddleware.js';
 import { PERMISSIONS } from '../config/rolesConfig.js';
@@ -55,6 +56,7 @@ router.get('/:id', optionalAuth, requirePermission(PERMISSIONS.PESAJE_VIEW), get
 router.post('/', requireAuth, requirePermission(PERMISSIONS.PESAJE_CREATE), upload.single('archivo'), createPesada);
 router.put('/:id', requireAuth, requirePermission(PERMISSIONS.PESAJE_UPDATE), upload.single('archivo'), updatePesada);
 router.put('/operacion/:operacionId', requireAuth, requirePermission(PERMISSIONS.PESAJE_UPDATE), upload.single('archivo'), updatePdfByOperacion);
-router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.PESAJE_DELETE), deletePesada);
+router.delete('/operacion/:operacionId', requireAuth, requirePermission(PERMISSIONS.PESAJE_DELETE), deletePesada);
+router.post('/operaciones/delete-masivo', requireAuth, requirePermission(PERMISSIONS.PESAJE_DELETE), deleteOperacionesMasivo);
 
 export default router;

@@ -33,12 +33,12 @@ export const getTransporteById = async (req, res) => {
 export const createTransporte = async (req, res) => {
   try {
     const { codigo, nombre, cuit } = req.body;
-    if (!nombre || !cuit) {
-      return res.status(400).json({ success: false, error: 'Nombre y CUIT son requeridos' });
+    if (!nombre) {
+      return res.status(400).json({ success: false, error: 'El nombre es requerido' });
     }
     const result = await pool.query(
       'INSERT INTO transporte (codigo, nombre, cuit, activo) VALUES ($1, $2, $3, true) RETURNING *',
-      [codigo || null, nombre, cuit]
+      [codigo || null, nombre, cuit || null]
     );
     res.status(201).json({ success: true, message: 'Transporte creado', data: result.rows[0] });
   } catch (error) {
