@@ -243,6 +243,13 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
               productor_id: data.data.productor_nombre || data.data.productor_id || '',
               transporte_id: data.data.transporte_nombre || data.data.transporte_id || '',
               sentido: data.data.sentido || 'INGRESO',
+              es_contenedor: data.data.es_contenedor || false,
+              nro_contenedor: data.data.nro_contenedor || '',
+              peso_vgm: data.data.peso_vgm ?? '',
+              tara_contenedor: data.data.tara_contenedor ?? '',
+              cantidad_bultos: data.data.cantidad_bultos ?? '',
+              nro_proforma: data.data.nro_proforma || '',
+              nro_permiso_embarque: data.data.nro_permiso_embarque || '',
             }));
           } else {
             setPesadaActiva(null);
