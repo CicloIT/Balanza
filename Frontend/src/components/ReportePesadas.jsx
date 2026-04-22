@@ -104,10 +104,18 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
             ? `N° ${String(numeroReporte).padStart(6, '0')}`
             : '';
 
-        const filas = pesadas.map((p, i) => `
+        const filas = pesadas.map((p, i) => {
+            const contenedorRow = p.es_contenedor ? `
+      <tr style="background:#ecfeff;border-left:3px solid #06b6d4">
+        <td></td>
+        <td colspan="10" style="font-size:8px;color:#0e7490;padding:2px 6px;font-style:italic">
+          <strong>CONTENEDOR:</strong> ${p.nro_contenedor || '—'}${p.peso_vgm != null ? ` &nbsp;·&nbsp; VGM: ${Number(p.peso_vgm).toLocaleString('es-AR')} kg` : ''}${p.tara_contenedor != null ? ` &nbsp;·&nbsp; Tara cont.: ${Number(p.tara_contenedor).toLocaleString('es-AR')} kg` : ''}${p.cantidad_bultos != null ? ` &nbsp;·&nbsp; Bultos: ${p.cantidad_bultos}` : ''}${p.nro_proforma ? ` &nbsp;·&nbsp; Proforma: ${p.nro_proforma}` : ''}${p.nro_permiso_embarque ? ` &nbsp;·&nbsp; Perm. Emb.: ${p.nro_permiso_embarque}` : ''}
+        </td>
+      </tr>` : '';
+            return `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
         <td style="text-align:center;color:#94a3b8">${i + 1}</td>
-        <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span></td>
+        <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>${p.es_contenedor ? ' <span style="font-size:7px;background:#cffafe;color:#0e7490;padding:1px 3px;border-radius:3px;font-weight:700">CTN</span>' : ''}</td>
         <td style="font-family:monospace;font-weight:700">${p.vehiculo_patente || '—'}</td>
         <td>${formatF(p.fecha_entrada)}</td>
         <td>${formatF(p.fecha_salida)}</td>
@@ -118,7 +126,8 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
         <td style="color:#475569">${formatP(p.tara)}</td>
         <td style="font-weight:800;font-size:12px;color:#0e7490">${formatP(p.neto)}</td>
       </tr>
-    `).join('');
+      ${contenedorRow}`;
+        }).join('');
 
         const renderReporte = () => `
       <div class="header">
@@ -437,7 +446,8 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                         </thead>
                         <tbody>
                             {pesadas.map((p, i) => (
-                                <tr key={i} className={`border-b transition-colors ${isDark
+                                <React.Fragment key={i}>
+                                <tr className={`border-b transition-colors ${isDark
                                     ? i % 2 === 0 ? 'border-slate-700' : 'bg-slate-700/30 border-slate-700'
                                     : i % 2 === 0 ? 'border-slate-100' : 'bg-slate-50 border-slate-100'
                                     }`}>
@@ -447,6 +457,9 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                         ? isDark ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-100 text-orange-700'
                                         : isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
                                       }`}>{p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>
+                                      {p.es_contenedor && (
+                                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>CTN</span>
+                                      )}
                                     </td>
                                     <td className={`px-3 py-2.5 font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.vehiculo_patente}</td>
                                     <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_entrada)}</td>
@@ -460,6 +473,26 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                     <td className={`px-3 py-2.5 font-bold text-sm ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{formatP(p.neto)}</td>
                                     <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero || '—'}</td>
                                 </tr>
+                                {p.es_contenedor && (
+                                    <tr className={`border-b ${isDark ? 'bg-cyan-900/20 border-slate-700' : 'bg-cyan-50 border-cyan-100'}`}>
+                                        <td />
+                                        <td colSpan={12} className={`px-3 py-1.5 text-[10px] italic ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
+                                            <span className="font-bold not-italic mr-2">CONTENEDOR:</span>
+                                            {p.nro_contenedor || '—'}
+                                            {p.peso_vgm != null && <span className="mx-2">·</span>}
+                                            {p.peso_vgm != null && <>VGM: <strong>{Number(p.peso_vgm).toLocaleString('es-AR')} kg</strong></>}
+                                            {p.tara_contenedor != null && <span className="mx-2">·</span>}
+                                            {p.tara_contenedor != null && <>Tara cont.: <strong>{Number(p.tara_contenedor).toLocaleString('es-AR')} kg</strong></>}
+                                            {p.cantidad_bultos != null && <span className="mx-2">·</span>}
+                                            {p.cantidad_bultos != null && <>Bultos: <strong>{p.cantidad_bultos}</strong></>}
+                                            {p.nro_proforma && <span className="mx-2">·</span>}
+                                            {p.nro_proforma && <>Proforma: <strong>{p.nro_proforma}</strong></>}
+                                            {p.nro_permiso_embarque && <span className="mx-2">·</span>}
+                                            {p.nro_permiso_embarque && <>Perm. Emb.: <strong>{p.nro_permiso_embarque}</strong></>}
+                                        </td>
+                                    </tr>
+                                )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                         <tfoot>
