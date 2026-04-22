@@ -211,6 +211,13 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     peso: '',
     nro_remito: '',
     sentido: 'INGRESO',
+    es_contenedor: false,
+    nro_contenedor: '',
+    peso_vgm: '',
+    tara_contenedor: '',
+    cantidad_bultos: '',
+    nro_proforma: '',
+    nro_permiso_embarque: '',
   });
   const [archivoPDF, setArchivoPDF] = useState(null);
   const fileInputRef = useRef(null);
@@ -312,9 +319,9 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
   }, []);
 
   const handleInputChange = useCallback((e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     if (name === 'peso' && !canEnterManualWeight()) return;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   }, [canEnterManualWeight]);
 
   const handleFileChange = useCallback((e) => {
@@ -346,11 +353,11 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
         setCamStatus('success');
         return data.archivos || [];
       } else {
-        setCamStatus('error');
+        setCamStatus('sin_camaras');
         return [];
       }
     } catch (e) {
-      setCamStatus('error');
+      setCamStatus('sin_camaras');
       return [];
     } finally {
       setCamLoading(false);
@@ -369,6 +376,11 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     const sentidoFinal = pesadaActiva ? pesadaActiva.sentido : formData.sentido;
     if (!sentidoFinal) {
       setErrorModal('Debe seleccionar si es Ingreso o Salida');
+      return;
+    }
+
+    if (formData.es_contenedor && !formData.nro_contenedor.trim()) {
+      setErrorModal('Nro de contenedor es obligatorio cuando es contenedor');
       return;
     }
 
@@ -450,6 +462,15 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
       if (formData.balancero) d.append('balancero', formData.balancero);
       if (formData.nro_remito) d.append('nro_remito', formData.nro_remito);
       if (archivoPDF) d.append('archivo', archivoPDF);
+      d.append('es_contenedor', formData.es_contenedor);
+      if (formData.es_contenedor) {
+        if (formData.nro_contenedor) d.append('nro_contenedor', formData.nro_contenedor);
+        if (formData.peso_vgm) d.append('peso_vgm', formData.peso_vgm);
+        if (formData.tara_contenedor) d.append('tara_contenedor', formData.tara_contenedor);
+        if (formData.cantidad_bultos) d.append('cantidad_bultos', formData.cantidad_bultos);
+        if (formData.nro_proforma) d.append('nro_proforma', formData.nro_proforma);
+        if (formData.nro_permiso_embarque) d.append('nro_permiso_embarque', formData.nro_permiso_embarque);
+      }
 
       // Pasar las fotos capturadas (array de objetos o strings)
       if (fotosCapturadas && fotosCapturadas.length > 0) {
@@ -480,6 +501,13 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
         peso: '',
         nro_remito: '',
         sentido: 'INGRESO',
+        es_contenedor: false,
+        nro_contenedor: '',
+        peso_vgm: '',
+        tara_contenedor: '',
+        cantidad_bultos: '',
+        nro_proforma: '',
+        nro_permiso_embarque: '',
       });
       setArchivoPDF(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -581,6 +609,92 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
               <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Balancero</label>
               <input name="balancero" value={formData.balancero} onChange={handleInputChange} className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`} placeholder="Nombre balancero" />
             </div>
+          </div>
+
+          {/* Contenedor Section */}
+          <div className={`p-5 rounded-2xl mb-6 border ${isDark ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                name="es_contenedor"
+                checked={formData.es_contenedor}
+                onChange={handleInputChange}
+                className="w-5 h-5 rounded accent-blue-600 cursor-pointer"
+              />
+              <span className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                Es Contenedor
+              </span>
+            </label>
+
+            {formData.es_contenedor && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    Nro Contenedor <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="nro_contenedor"
+                    value={formData.nro_contenedor}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="MSCU1234567"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Peso VGM (kg)</label>
+                  <input
+                    type="number"
+                    name="peso_vgm"
+                    value={formData.peso_vgm}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Tara Contenedor (kg)</label>
+                  <input
+                    type="number"
+                    name="tara_contenedor"
+                    value={formData.tara_contenedor}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad Bultos</label>
+                  <input
+                    type="number"
+                    name="cantidad_bultos"
+                    value={formData.cantidad_bultos}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nro Proforma</label>
+                  <input
+                    name="nro_proforma"
+                    value={formData.nro_proforma}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="PLT-001"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nro Permiso Embarque</label>
+                  <input
+                    name="nro_permiso_embarque"
+                    value={formData.nro_permiso_embarque}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
+                    placeholder="PE-0000001"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Peso Section */}
@@ -697,7 +811,15 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
         {/* Cámaras Section */}
         <div className={`backdrop-blur-xl rounded-2xl shadow-xl p-8 border transition-all ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white/80 border-slate-200'}`}>
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3"><Camera className="text-blue-500" size={24} /><h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cámaras de Seguridad</h3></div>
+            <div className="flex items-center gap-3">
+              <Camera className="text-blue-500" size={24} />
+              <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cámaras de Seguridad</h3>
+              {camStatus === 'sin_camaras' && (
+                <span className={`text-xs font-bold px-2 py-1 rounded-lg ${isDark ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'}`}>
+                  Sin cámaras — pesada registrada igual
+                </span>
+              )}
+            </div>
             <button onClick={() => capturarFotos(formData.vehiculo_patente)} disabled={camLoading} className={`p-2 rounded-lg transition-all ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-slate-100 hover:bg-slate-200'}`}><RefreshCw size={20} className={camLoading ? 'animate-spin' : ''} /></button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

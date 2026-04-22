@@ -72,8 +72,29 @@ export default function DetallePesadaModal({ abierto, item, onClose }) {
                   <DetailItem icon={User} label="Productor" value={item.productor} isDark={isDark} />
                   <DetailItem icon={Hash} label="Nro Remito" value={item.nro_remito} isDark={isDark} />
                   <DetailItem icon={User} label="Balancero" value={item.balancero} isDark={isDark} />
+                  {item.es_contenedor && (
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold w-fit ${isDark ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-cyan-100 text-cyan-700 border border-cyan-200'}`}>
+                      <Package size={12} /> CONTENEDOR
+                    </div>
+                  )}
                 </div>
               </section>
+
+              {item.es_contenedor && (
+                <section>
+                  <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                    <Package size={14} /> Datos de Contenedor
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    <DetailItem icon={Hash} label="Nro Contenedor" value={item.nro_contenedor} isDark={isDark} />
+                    {item.peso_vgm != null && <DetailItem icon={Scale} label="Peso VGM" value={`${Number(item.peso_vgm).toLocaleString('es-AR')} kg`} isDark={isDark} />}
+                    {item.tara_contenedor != null && <DetailItem icon={Scale} label="Tara Contenedor" value={`${Number(item.tara_contenedor).toLocaleString('es-AR')} kg`} isDark={isDark} />}
+                    {item.cantidad_bultos != null && <DetailItem icon={Hash} label="Cantidad Bultos" value={item.cantidad_bultos} isDark={isDark} />}
+                    {item.nro_proforma && <DetailItem icon={Hash} label="Nro Proforma" value={item.nro_proforma} isDark={isDark} />}
+                    {item.nro_permiso_embarque && <DetailItem icon={Hash} label="Nro Permiso Embarque" value={item.nro_permiso_embarque} isDark={isDark} />}
+                  </div>
+                </section>
+              )}
 
               <section>
                 <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>

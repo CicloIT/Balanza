@@ -90,14 +90,12 @@ const detectarCanalesActivos = async (client, ip) => {
 
     const activos = resultados.filter(Boolean);
 
-    const finalActivos = activos.length > 0 ? activos : [1];
-
-    cacheCanales = finalActivos;
+    cacheCanales = activos;
     ultimaDeteccion = ahora;
 
-    console.log(`✅ Canales detectados: ${finalActivos.join(", ")}`);
+    console.log(`✅ Canales detectados: ${activos.join(", ") || "ninguno"}`);
 
-    return finalActivos;
+    return activos;
 };
 
 export const getConfig = async (req, res) => {
@@ -114,70 +112,72 @@ export const capturarTodo = async (req, res) => {
     const patente = (req.query.patente || "SIN_PATENTE").toUpperCase().trim();
     console.log(`📸 Iniciando captura para Patente: ${patente}...`);
 
+    let client, ip;
+    try {
+        ({ client, ip } = await crearClienteNVR());
+    } catch (error) {
+        console.error("No se pudo conectar al NVR:", error.message);
+        return res.json({ status: "sin_camaras", archivos: [], message: error.message });
+    }
+
+    let canales;
+    try {
+        canales = await detectarCanalesActivos(client, ip);
+    } catch (error) {
+        console.error("Error detectando canales:", error.message);
+        return res.json({ status: "sin_camaras", archivos: [], message: error.message });
+    }
+
     const patenteDir = path.join(CAPTURAS_DIR, patente);
     if (!fs.existsSync(patenteDir)) {
         fs.mkdirSync(patenteDir, { recursive: true });
     }
 
-    const { client, ip } = await crearClienteNVR();
-    const canales = await detectarCanalesActivos(client, ip);
     const archivos = [];
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
 
-    try {
-        for (const ch of canales) {
-            console.log(`🔍 Intentando capturar Canal ${ch} para ${patente}...`);
+    for (const ch of canales) {
+        console.log(`🔍 Intentando capturar Canal ${ch} para ${patente}...`);
 
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 15000);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
 
-            try {
-                const response = await client.fetch(
-                    `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
-                    { signal: controller.signal }
-                );
-                clearTimeout(timeout);
+        try {
+            const response = await client.fetch(
+                `https://${ip}/cgi-bin/snapshot.cgi?channel=${ch}`,
+                { signal: controller.signal }
+            );
+            clearTimeout(timeout);
 
-                if (!response.ok) {
-                    throw new Error(`NVR respondió con status ${response.status}`);
-                }
-
-                const buffer = Buffer.from(await response.arrayBuffer());
-
-                if (buffer.length < 5000) {
-                    throw new Error(`La imagen del canal ${ch} parece estar dañada o vacía (${buffer.length} bytes)`);
-                }
-
-                const fileName = `${patente}_cam${ch}_${timestamp}.jpg`;
-                fs.writeFileSync(path.join(patenteDir, fileName), buffer);
-
-                // Retornamos objeto con canal y path relativo
-                archivos.push({ canal: ch, ruta: `${patente}/${fileName}` });
-                console.log(`✅ Canal ${ch} capturado exitosamente: ${fileName}`);
-            } catch (error) {
-                console.error(`❌ Error en Canal ${ch}:`, error.message);
+            if (!response.ok) {
+                throw new Error(`NVR respondió con status ${response.status}`);
             }
+
+            const buffer = Buffer.from(await response.arrayBuffer());
+
+            if (buffer.length < 5000) {
+                throw new Error(`Imagen canal ${ch} dañada o vacía (${buffer.length} bytes)`);
+            }
+
+            const fileName = `${patente}_cam${ch}_${timestamp}.jpg`;
+            fs.writeFileSync(path.join(patenteDir, fileName), buffer);
+
+            archivos.push({ canal: ch, ruta: `${patente}/${fileName}` });
+            console.log(`✅ Canal ${ch} capturado: ${fileName}`);
+        } catch (error) {
+            console.error(`❌ Error en Canal ${ch}:`, error.message);
         }
+    }
 
-        if (archivos.length === 0) {
-            return res.status(500).json({
-                status: "error",
-                message: "No se pudo capturar ninguna imagen de las cámaras."
-            });
-        }
-
-        res.json({
-            status: "ok",
-            archivos
-        });
-
-    } catch (error) {
-        console.error("ERROR CRÍTICO NVR:", error);
-        res.status(500).json({
-            status: "error",
-            message: error.message
+    if (archivos.length === 0) {
+        return res.json({
+            status: "sin_camaras",
+            archivos: [],
+            message: "No se pudo capturar ninguna imagen de las cámaras."
         });
     }
+
+    res.json({ status: "ok", archivos });
 };
 
 
