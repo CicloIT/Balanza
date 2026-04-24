@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Edit2, Trash2, Eye, EyeOff, FileText, CheckSquare, Square, Upload } from 'lucide-react';
+import { Edit2, Trash2, Eye, EyeOff, FileText, CheckSquare, Square, Upload, Package } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
 import Guard from './Guard';
 
@@ -108,7 +108,7 @@ function RenderCelda({ item, keyName, isDark }) {
 }
 
 /* ─── Action buttons (reused in table row & card) ───────────────────────── */
-function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles }) {
+function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles, onContenedor }) {
   return (
     <>
       <button
@@ -148,6 +148,20 @@ function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles }) {
           </label>
         </Guard>
       )}
+      {item.es_contenedor && (
+        <Guard permissions="pesaje:update">
+          <button
+            onClick={e => { e.stopPropagation(); onContenedor?.(item); }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${isDark
+              ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/40'
+              : 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100'
+              }`}
+            title="Completar datos de contenedor"
+          >
+            <Package size={14} /> Contenedor
+          </button>
+        </Guard>
+      )}
     </>
   );
 }
@@ -155,7 +169,7 @@ function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles }) {
 /* ─── Desktop table row ─────────────────────────────────────────────────── */
 const FilaTabla = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -212,7 +226,7 @@ const FilaTabla = React.memo(({
               </>
             )}
             {tipo === 'pesadas' && (
-              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} />
+              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} />
             )}
           </div>
         </td>
@@ -224,7 +238,7 @@ const FilaTabla = React.memo(({
 /* ─── Mobile card ───────────────────────────────────────────────────────── */
 const CardItem = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -316,7 +330,7 @@ const CardItem = React.memo(({
             </>
           )}
           {tipo === 'pesadas' && (
-            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} />
+            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} />
           )}
         </div>
       )}
@@ -327,7 +341,7 @@ const CardItem = React.memo(({
 /* ─── Main component ────────────────────────────────────────────────────── */
 const TablaItems = React.memo(({
   items, tipo, columnasKeys, columnasLabels,
-  onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles,
+  onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles, onContenedor,
   onGenerarReporte, onEliminarMultiples, soloLectura = false,
   hasMore, loadMore, loadingMore
 }) => {
@@ -393,7 +407,7 @@ const TablaItems = React.memo(({
   const sharedRowProps = {
     isDark, tipo, columnasKeys, columnasLabels,
     onToggleSeleccion: handleToggleSeleccion,
-    onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles,
+    onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
     soloLectura, mostrarColumnaAcciones,
   };
 

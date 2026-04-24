@@ -25,6 +25,7 @@ import ReportesHistorial from './components/ReportesHistorial';
 import Guard from './components/Guard';
 import ProtectedRoute from './components/ProtectedRoute';
 import DetallePesadaModal from './components/DetallePesadaModal';
+import ContenedorModal from './components/ContenedorModal';
 import Configuracion from './components/Configuracion';
 
 export default function GestionApp() {
@@ -87,6 +88,7 @@ export default function GestionApp() {
 
   const [pesadaDetalle, setPesadaDetalle] = useState(null);
   const [pesadasReporte, setPesadasReporte] = useState(null);
+  const [contenedorModal, setContenedorModal] = useState(null);
 
   useEffect(() => { setSearchTerm(''); }, [activeTab]);
 
@@ -459,6 +461,7 @@ export default function GestionApp() {
                     onEliminarMultiples={handleEliminarMultiples}
                     onGenerarReporte={setPesadasReporte}
                     onVerDetalles={setPesadaDetalle}
+                    onContenedor={setContenedorModal}
                     soloLectura={activeTab === 'pesadas'}
                     hasMore={currentGestion.hasMore}
                     loadMore={currentGestion.loadMore}
@@ -510,6 +513,16 @@ export default function GestionApp() {
           abierto={!!pesadaDetalle}
           item={pesadaDetalle}
           onClose={() => setPesadaDetalle(null)}
+        />
+      )}
+
+      {/* Modal datos de contenedor */}
+      {contenedorModal && (
+        <ContenedorModal
+          abierto={!!contenedorModal}
+          item={contenedorModal}
+          onClose={() => setContenedorModal(null)}
+          onSaved={() => setRefreshTrigger(Date.now())}
         />
       )}
 

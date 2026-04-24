@@ -69,9 +69,7 @@ export const createPesada = async (req, res) => {
     }
 
     const esContenedor = es_contenedor === 'true' || es_contenedor === true;
-    if (esContenedor && !nro_contenedor) {
-      return res.status(400).json({ success: false, error: 'Nro de contenedor es obligatorio cuando es contenedor' });
-    }
+    const nroContenedorFinal = esContenedor ? (nro_contenedor || '0') : null;
 
     if (!['INGRESO', 'SALIDA'].includes(sentido)) {
       return res.status(400).json({ success: false, error: 'Sentido debe ser INGRESO o SALIDA' });
@@ -149,7 +147,7 @@ export const createPesada = async (req, res) => {
         req.file ? `documentos/${req.file.filename}` : null,
         fotos ? (typeof fotos === 'string' ? fotos : JSON.stringify(fotos)) : null,
         esContenedor,
-        esContenedor ? (nro_contenedor || null) : null,
+        nroContenedorFinal,
         esContenedor ? (peso_vgm || null) : null,
         esContenedor ? (tara_contenedor || null) : null,
         esContenedor ? (cantidad_bultos || null) : null,
@@ -413,6 +411,75 @@ export const getPesadasAgrupadas = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const updateContenedorByOperacion = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { operacionId } = req.params;
+    const { nro_contenedor, peso_vgm, tara_contenedor, cantidad_bultos, nro_proforma, nro_permiso_embarque } = req.body;
+
+    if (!nro_contenedor) {
+      return res.status(400).json({ success: false, error: 'Nro de contenedor es obligatorio' });
+    }
+
+    // Traer bruto y tara actuales para recalcular
+    const pesadasResult = await client.query(
+      `SELECT tipo, peso FROM pesada WHERE operacion_id = $1`,
+      [operacionId]
+    );
+
+    const brutoRec = pesadasResult.rows.find(r => r.tipo === 'BRUTO');
+    const taraRec  = pesadasResult.rows.find(r => r.tipo === 'TARA');
+
+    // Actualizar campos contenedor en todas las pesadas de la operación
+    await client.query(
+      `UPDATE pesada SET
+        nro_contenedor       = $1,
+        peso_vgm             = $2,
+        tara_contenedor      = $3,
+        cantidad_bultos      = $4,
+        nro_proforma         = $5,
+        nro_permiso_embarque = $6,
+        es_contenedor        = true
+       WHERE operacion_id = $7`,
+      [
+        nro_contenedor,
+        peso_vgm          || null,
+        tara_contenedor   || null,
+        cantidad_bultos   || null,
+        nro_proforma      || null,
+        nro_permiso_embarque || null,
+        operacionId
+      ]
+    );
+
+    // Recalcular bruto/tara solo si operación cerrada y tara_contenedor válida
+    const taraCont = parseFloat(tara_contenedor) || 0;
+    if (brutoRec && taraRec && taraCont > 0) {
+      const netoOriginal = parseFloat(brutoRec.peso) - parseFloat(taraRec.peso);
+      const newBruto = netoOriginal + taraCont;
+      const newTara  = taraCont;
+
+      await client.query(
+        `UPDATE pesada SET peso = $1 WHERE operacion_id = $2 AND tipo = 'BRUTO'`,
+        [newBruto, operacionId]
+      );
+      await client.query(
+        `UPDATE pesada SET peso = $1 WHERE operacion_id = $2 AND tipo = 'TARA'`,
+        [newTara, operacionId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Datos de contenedor actualizados exitosamente' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 };
 

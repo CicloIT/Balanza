@@ -104,18 +104,13 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
             ? `N° ${String(numeroReporte).padStart(6, '0')}`
             : '';
 
-        const filas = pesadas.map((p, i) => {
-            const contenedorRow = p.es_contenedor ? `
-      <tr style="background:#ecfeff;border-left:3px solid #06b6d4">
-        <td></td>
-        <td colspan="10" style="font-size:8px;color:#0e7490;padding:2px 6px;font-style:italic">
-          <strong>CONTENEDOR:</strong> ${p.nro_contenedor || '—'}${p.peso_vgm != null ? ` &nbsp;·&nbsp; VGM: ${Number(p.peso_vgm).toLocaleString('es-AR')} kg` : ''}${p.tara_contenedor != null ? ` &nbsp;·&nbsp; Tara cont.: ${Number(p.tara_contenedor).toLocaleString('es-AR')} kg` : ''}${p.cantidad_bultos != null ? ` &nbsp;·&nbsp; Bultos: ${p.cantidad_bultos}` : ''}${p.nro_proforma ? ` &nbsp;·&nbsp; Proforma: ${p.nro_proforma}` : ''}${p.nro_permiso_embarque ? ` &nbsp;·&nbsp; Perm. Emb.: ${p.nro_permiso_embarque}` : ''}
-        </td>
-      </tr>` : '';
-            return `
+        const normales    = pesadas.filter(p => !p.es_contenedor);
+        const contenedores = pesadas.filter(p => p.es_contenedor);
+
+        const filasNormales = normales.map((p, i) => `
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
         <td style="text-align:center;color:#94a3b8">${i + 1}</td>
-        <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>${p.es_contenedor ? ' <span style="font-size:7px;background:#cffafe;color:#0e7490;padding:1px 3px;border-radius:3px;font-weight:700">CTN</span>' : ''}</td>
+        <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span></td>
         <td style="font-family:monospace;font-weight:700">${p.vehiculo_patente || '—'}</td>
         <td>${formatF(p.fecha_entrada)}</td>
         <td>${formatF(p.fecha_salida)}</td>
@@ -125,43 +120,61 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
         <td style="font-weight:700;color:#15803d">${formatP(p.bruto)}</td>
         <td style="color:#475569">${formatP(p.tara)}</td>
         <td style="font-weight:800;font-size:12px;color:#0e7490">${formatP(p.neto)}</td>
-      </tr>
-      ${contenedorRow}`;
-        }).join('');
+      </tr>`).join('');
+
+        const renderContenedorCard = (p, idx) => `
+      <div class="ctn-card">
+        <div class="ctn-header">
+          <span>CONTENEDOR ${idx + 1} — ${p.vehiculo_patente || '—'}</span>
+          <span class="ctn-badge" style="background:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>
+        </div>
+        <div class="ctn-body">
+          <div class="ctn-section">PESADA</div>
+          <div class="ctn-row"><div class="ctn-lbl">Dominio</div><div class="ctn-val ctn-mono">${p.vehiculo_patente || '—'}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Entrada Planta</div><div class="ctn-val">${formatF(p.fecha_entrada)}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Salida Planta</div><div class="ctn-val">${formatF(p.fecha_salida)}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Productor</div><div class="ctn-val">${p.productor || '—'}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Producto</div><div class="ctn-val">${p.producto || '—'}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Nro Remito</div><div class="ctn-val">${p.nro_remito || '—'}</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">Balancero</div><div class="ctn-val">${p.balancero || '—'}</div></div>
+          <div class="ctn-row ctn-bruto"><div class="ctn-lbl">Peso Bruto</div><div class="ctn-val">${formatP(p.bruto)}</div></div>
+          <div class="ctn-row ctn-tara"><div class="ctn-lbl">Peso Tara</div><div class="ctn-val">${formatP(p.tara)}</div></div>
+          <div class="ctn-row ctn-neto"><div class="ctn-lbl">Peso Neto</div><div class="ctn-val">${formatP(p.neto)}</div></div>
+          <div class="ctn-section">DATOS CONTENEDOR</div>
+          <div class="ctn-row"><div class="ctn-lbl">Nro Contenedor</div><div class="ctn-val ctn-mono">${p.nro_contenedor || '—'}</div></div>
+          ${p.tara_contenedor != null ? `<div class="ctn-row"><div class="ctn-lbl">Tara Contenedor</div><div class="ctn-val">${Number(p.tara_contenedor).toLocaleString('es-AR')} kg</div></div>` : ''}
+          ${p.peso_vgm != null ? `<div class="ctn-row"><div class="ctn-lbl">Peso VGM</div><div class="ctn-val">${Number(p.peso_vgm).toLocaleString('es-AR')} kg</div></div>` : ''}
+          ${p.cantidad_bultos != null ? `<div class="ctn-row"><div class="ctn-lbl">Cant. Bultos</div><div class="ctn-val">${p.cantidad_bultos}</div></div>` : ''}
+          ${p.nro_proforma ? `<div class="ctn-row"><div class="ctn-lbl">Nro Proforma</div><div class="ctn-val">${p.nro_proforma}</div></div>` : ''}
+          ${p.nro_permiso_embarque ? `<div class="ctn-row"><div class="ctn-lbl">Perm. Embarque</div><div class="ctn-val">${p.nro_permiso_embarque}</div></div>` : ''}
+          <div class="ctn-section">ATA</div>
+          <div class="ctn-row"><div class="ctn-lbl">Nombre</div><div class="ctn-val">Gabriela Celano</div></div>
+          <div class="ctn-row"><div class="ctn-lbl">CUIT</div><div class="ctn-val ctn-mono">27-22432451-6</div></div>
+        </div>
+      </div>`;
 
         const renderReporte = () => `
       <div class="header">
         <div>
           <h1>Reporte de Pesadas</h1>
-          <div style="font-size:9px;color:#64748b;margin-top:4px">
-            Emisión: ${fechaEmision}
-          </div>
+          <div style="font-size:9px;color:#64748b;margin-top:4px">Emisión: ${fechaEmision}</div>
         </div>
         <div class="meta">
           ${nroLabel ? `<strong>${nroLabel}</strong>` : ''}
-          <div style="margin-top:4px">
-            ${pesadas.length} pesada${pesadas.length !== 1 ? 's' : ''}
-          </div>
+          <div style="margin-top:4px">${pesadas.length} pesada${pesadas.length !== 1 ? 's' : ''}</div>
         </div>
       </div>
 
+      ${normales.length > 0 ? `
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Sentido</th>
-            <th>Dominio</th>
-            <th>Entrada Planta</th>
-            <th>Salida Planta</th>
-            <th>Productor</th>
-            <th>Producto</th>
-            <th>Remito</th>
-            <th>Bruto</th>
-            <th>Tara</th>
-            <th>Neto</th>
+            <th>#</th><th>Sentido</th><th>Dominio</th><th>Entrada Planta</th>
+            <th>Salida Planta</th><th>Productor</th><th>Producto</th><th>Remito</th>
+            <th>Bruto</th><th>Tara</th><th>Neto</th>
           </tr>
         </thead>
-        <tbody>${filas}</tbody>
+        <tbody>${filasNormales}</tbody>
         <tfoot>
           <tr>
             <td colspan="8" style="text-align:right;font-size:9px">Totales</td>
@@ -171,33 +184,20 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
           </tr>
         </tfoot>
       </table>
-
       <div class="totales-boxes">
-        <div class="total-box bruto">
-          <div class="t-label">Bruto</div>
-          <div class="t-valor">${totalBruto.toLocaleString('es-AR')}</div>
-        </div>
-        <div class="total-box">
-          <div class="t-label">Tara</div>
-          <div class="t-valor">${totalTara.toLocaleString('es-AR')}</div>
-        </div>
-        <div class="total-box neto">
-          <div class="t-label">Neto</div>
-          <div class="t-valor">${totalNeto.toLocaleString('es-AR')}</div>
-        </div>
-      </div>
+        <div class="total-box"><div class="t-label">Bruto</div><div class="t-valor">${totalBruto.toLocaleString('es-AR')}</div></div>
+        <div class="total-box"><div class="t-label">Tara</div><div class="t-valor">${totalTara.toLocaleString('es-AR')}</div></div>
+        <div class="total-box neto"><div class="t-label">Neto</div><div class="t-valor">${totalNeto.toLocaleString('es-AR')}</div></div>
+      </div>` : ''}
+
+      ${contenedores.length > 0 ? `
+      <div style="margin-top:${normales.length > 0 ? '14px' : '0'}">
+        ${contenedores.map((p, i) => renderContenedorCard(p, i)).join('')}
+      </div>` : ''}
 
       <div class="firmas">
-        <div class="firma-bloque">
-          <div class="firma-linea">
-            <p class="firma-titulo">Firma Responsable</p>
-          </div>
-        </div>
-        <div class="firma-bloque">
-          <div class="firma-linea">
-            <p class="firma-titulo">Conformidad</p>
-          </div>
-        </div>
+        <div class="firma-bloque"><div class="firma-linea"><p class="firma-titulo">Firma Responsable</p></div></div>
+        <div class="firma-bloque"><div class="firma-linea"><p class="firma-titulo">Conformidad</p></div></div>
       </div>
     `;
 
@@ -300,6 +300,68 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
             font-size:9px;
             margin-top:10px;
           }
+
+          /* ── Tarjeta Contenedor ── */
+          .ctn-card {
+            border:2px solid #06b6d4;
+            border-radius:6px;
+            margin-bottom:12px;
+            overflow:hidden;
+            page-break-inside:avoid;
+          }
+          .ctn-header {
+            background:#0e7490;
+            color:#fff;
+            padding:7px 12px;
+            font-size:12px;
+            font-weight:900;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+          }
+          .ctn-badge {
+            color:#fff;
+            padding:2px 8px;
+            border-radius:4px;
+            font-size:10px;
+            font-weight:700;
+          }
+          .ctn-body {
+            padding:0;
+          }
+          .ctn-section {
+            background:#ecfeff;
+            padding:4px 12px;
+            font-size:9px;
+            font-weight:900;
+            text-transform:uppercase;
+            letter-spacing:0.08em;
+            color:#0e7490;
+            border-top:1px solid #a5f3fc;
+            border-bottom:1px solid #a5f3fc;
+          }
+          .ctn-row {
+            display:flex;
+            align-items:baseline;
+            padding:5px 12px;
+            border-bottom:1px solid #e0f7fa;
+            font-size:11px;
+          }
+          .ctn-lbl {
+            width:170px;
+            flex-shrink:0;
+            color:#0e7490;
+            opacity:0.75;
+            font-size:10px;
+          }
+          .ctn-val {
+            font-weight:700;
+            font-size:12px;
+          }
+          .ctn-mono { font-family:monospace; }
+          .ctn-bruto .ctn-val { color:#15803d; }
+          .ctn-tara  .ctn-val { color:#475569; }
+          .ctn-neto  .ctn-val { color:#0e7490; font-size:15px; }
 
           /* 🔥 DUPLICADO */
           .page {
@@ -434,80 +496,130 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                     </div>
                 </div>
 
-                {/* Tabla preview */}
-                <div className="p-4 overflow-x-auto">
-                    <table className="w-full text-xs">
-                        <thead>
-                            <tr className={isDark ? 'bg-slate-700' : 'bg-slate-800'}>
-                                {['#', 'Sentido', 'Dominio', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Balancero'].map(h => (
-                                    <th key={h} className="px-3 py-3 text-left text-white font-bold uppercase tracking-wide text-[10px] whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pesadas.map((p, i) => (
-                                <React.Fragment key={i}>
-                                <tr className={`border-b transition-colors ${isDark
-                                    ? i % 2 === 0 ? 'border-slate-700' : 'bg-slate-700/30 border-slate-700'
-                                    : i % 2 === 0 ? 'border-slate-100' : 'bg-slate-50 border-slate-100'
-                                    }`}>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{i + 1}</td>
-                                    <td className="px-3 py-2.5">
-                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.sentido === 'SALIDA'
-                                        ? isDark ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-100 text-orange-700'
-                                        : isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'
-                                      }`}>{p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span>
-                                      {p.es_contenedor && (
-                                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>CTN</span>
-                                      )}
-                                    </td>
-                                    <td className={`px-3 py-2.5 font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.vehiculo_patente}</td>
-                                    <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_entrada)}</td>
-                                    <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_salida)}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.productor || '—'}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.transporte || '—'}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.producto || '—'}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{p.nro_remito || '—'}</td>
-                                    <td className={`px-3 py-2.5 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{formatP(p.bruto)}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatP(p.tara)}</td>
-                                    <td className={`px-3 py-2.5 font-bold text-sm ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{formatP(p.neto)}</td>
-                                    <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero || '—'}</td>
-                                </tr>
-                                {p.es_contenedor && (
-                                    <tr className={`border-b ${isDark ? 'bg-cyan-900/20 border-slate-700' : 'bg-cyan-50 border-cyan-100'}`}>
-                                        <td />
-                                        <td colSpan={12} className={`px-3 py-1.5 text-[10px] italic ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
-                                            <span className="font-bold not-italic mr-2">CONTENEDOR:</span>
-                                            {p.nro_contenedor || '—'}
-                                            {p.peso_vgm != null && <span className="mx-2">·</span>}
-                                            {p.peso_vgm != null && <>VGM: <strong>{Number(p.peso_vgm).toLocaleString('es-AR')} kg</strong></>}
-                                            {p.tara_contenedor != null && <span className="mx-2">·</span>}
-                                            {p.tara_contenedor != null && <>Tara cont.: <strong>{Number(p.tara_contenedor).toLocaleString('es-AR')} kg</strong></>}
-                                            {p.cantidad_bultos != null && <span className="mx-2">·</span>}
-                                            {p.cantidad_bultos != null && <>Bultos: <strong>{p.cantidad_bultos}</strong></>}
-                                            {p.nro_proforma && <span className="mx-2">·</span>}
-                                            {p.nro_proforma && <>Proforma: <strong>{p.nro_proforma}</strong></>}
-                                            {p.nro_permiso_embarque && <span className="mx-2">·</span>}
-                                            {p.nro_permiso_embarque && <>Perm. Emb.: <strong>{p.nro_permiso_embarque}</strong></>}
-                                        </td>
-                                    </tr>
-                                )}
-                                </React.Fragment>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr className={`border-t-2 ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-100 border-slate-300'}`}>
-                                <td colSpan={9} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                    Totales
-                                </td>
-                                <td className={`px-3 py-3 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{totalBruto.toLocaleString('es-AR')} kg</td>
-                                <td className={`px-3 py-3 font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{totalTara.toLocaleString('es-AR')} kg</td>
-                                <td className={`px-3 py-3 font-bold text-base ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{totalNeto.toLocaleString('es-AR')} kg</td>
-                                <td colSpan={2} />
-                            </tr>
-                        </tfoot>
-                    </table>
+                {/* Preview */}
+                <div className="p-4 space-y-4">
 
+                    {/* Tabla pesadas normales */}
+                    {pesadas.filter(p => !p.es_contenedor).length > 0 && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className={isDark ? 'bg-slate-700' : 'bg-slate-800'}>
+                                        {['#', 'Sentido', 'Dominio', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Balancero'].map(h => (
+                                            <th key={h} className="px-3 py-3 text-left text-white font-bold uppercase tracking-wide text-[10px] whitespace-nowrap">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pesadas.filter(p => !p.es_contenedor).map((p, i) => (
+                                        <tr key={i} className={`border-b transition-colors ${isDark
+                                            ? i % 2 === 0 ? 'border-slate-700' : 'bg-slate-700/30 border-slate-700'
+                                            : i % 2 === 0 ? 'border-slate-100' : 'bg-slate-50 border-slate-100'}`}>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{i + 1}</td>
+                                            <td className="px-3 py-2.5">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.sentido === 'SALIDA' ? isDark ? 'bg-orange-500/30 text-orange-300' : 'bg-orange-100 text-orange-700' : isDark ? 'bg-blue-500/30 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}
+                                                </span>
+                                            </td>
+                                            <td className={`px-3 py-2.5 font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.vehiculo_patente}</td>
+                                            <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_entrada)}</td>
+                                            <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_salida)}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.productor || '—'}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.transporte || '—'}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.producto || '—'}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{p.nro_remito || '—'}</td>
+                                            <td className={`px-3 py-2.5 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{formatP(p.bruto)}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatP(p.tara)}</td>
+                                            <td className={`px-3 py-2.5 font-bold text-sm ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{formatP(p.neto)}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.balancero || '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr className={`border-t-2 ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-100 border-slate-300'}`}>
+                                        <td colSpan={9} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Totales</td>
+                                        <td className={`px-3 py-3 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{totalBruto.toLocaleString('es-AR')} kg</td>
+                                        <td className={`px-3 py-3 font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{totalTara.toLocaleString('es-AR')} kg</td>
+                                        <td className={`px-3 py-3 font-bold text-base ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{totalNeto.toLocaleString('es-AR')} kg</td>
+                                        <td colSpan={2} />
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Tarjetas contenedores */}
+                    {pesadas.filter(p => p.es_contenedor).map((p, i) => (
+                        <div key={i} className={`rounded-2xl overflow-hidden border-2 ${isDark ? 'border-cyan-500/50' : 'border-cyan-400'}`}>
+                            {/* Header tarjeta */}
+                            <div className={`flex items-center justify-between px-5 py-3 ${isDark ? 'bg-cyan-900/40' : 'bg-cyan-700'}`}>
+                                <span className="text-white font-black text-sm">CONTENEDOR {i + 1} — {p.vehiculo_patente || '—'}</span>
+                                <span className={`px-3 py-1 rounded font-bold text-xs text-white ${p.sentido === 'SALIDA' ? 'bg-orange-600' : 'bg-blue-700'}`}>
+                                    {p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}
+                                </span>
+                            </div>
+
+                            {/* Sección Pesada */}
+                            <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest border-b ${isDark ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-50 text-cyan-700 border-cyan-200'}`}>Pesada</div>
+                            <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
+                                {[
+                                    ['Dominio', <span className="font-mono">{p.vehiculo_patente || '—'}</span>],
+                                    ['Entrada Planta', formatF(p.fecha_entrada)],
+                                    ['Salida Planta', formatF(p.fecha_salida)],
+                                    ['Productor', p.productor || '—'],
+                                    ['Producto', p.producto || '—'],
+                                    ['Nro Remito', p.nro_remito || '—'],
+                                    ['Balancero', p.balancero || '—'],
+                                ].map(([lbl, val]) => (
+                                    <div key={lbl} className={`flex items-baseline px-5 py-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                        <span className={`w-44 flex-shrink-0 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lbl}</span>
+                                        <span className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{val}</span>
+                                    </div>
+                                ))}
+                                <div className={`flex items-baseline px-5 py-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                    <span className={`w-44 flex-shrink-0 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Peso Bruto</span>
+                                    <span className={`text-base font-black ${isDark ? 'text-green-400' : 'text-green-700'}`}>{formatP(p.bruto)}</span>
+                                </div>
+                                <div className={`flex items-baseline px-5 py-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                    <span className={`w-44 flex-shrink-0 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Peso Tara</span>
+                                    <span className={`text-base font-black ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatP(p.tara)}</span>
+                                </div>
+                                <div className={`flex items-baseline px-5 py-2 ${isDark ? 'bg-cyan-500/10 hover:bg-cyan-500/15' : 'bg-cyan-50 hover:bg-cyan-100'}`}>
+                                    <span className={`w-44 flex-shrink-0 text-xs font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>Peso Neto</span>
+                                    <span className={`text-xl font-black ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>{formatP(p.neto)}</span>
+                                </div>
+                            </div>
+
+                            {/* Sección Datos Contenedor */}
+                            <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest border-y ${isDark ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-50 text-cyan-700 border-cyan-200'}`}>Datos Contenedor</div>
+                            <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
+                                {[
+                                    ['Nro Contenedor', <span className="font-mono">{p.nro_contenedor || '—'}</span>],
+                                    ...(p.tara_contenedor != null ? [['Tara Contenedor', `${Number(p.tara_contenedor).toLocaleString('es-AR')} kg`]] : []),
+                                    ...(p.peso_vgm != null ? [['Peso VGM', `${Number(p.peso_vgm).toLocaleString('es-AR')} kg`]] : []),
+                                    ...(p.cantidad_bultos != null ? [['Cant. Bultos', String(p.cantidad_bultos)]] : []),
+                                    ...(p.nro_proforma ? [['Nro Proforma', p.nro_proforma]] : []),
+                                    ...(p.nro_permiso_embarque ? [['Perm. Embarque', p.nro_permiso_embarque]] : []),
+                                ].map(([lbl, val]) => (
+                                    <div key={lbl} className={`flex items-baseline px-5 py-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                        <span className={`w-44 flex-shrink-0 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lbl}</span>
+                                        <span className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{val}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Sección ATA */}
+                            <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest border-y ${isDark ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-50 text-cyan-700 border-cyan-200'}`}>ATA</div>
+                            <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
+                                {[['Nombre', 'Gabriela Celano'], ['CUIT', '27-22432451-6']].map(([lbl, val]) => (
+                                    <div key={lbl} className={`flex items-baseline px-5 py-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
+                                        <span className={`w-44 flex-shrink-0 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{lbl}</span>
+                                        <span className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{val}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>

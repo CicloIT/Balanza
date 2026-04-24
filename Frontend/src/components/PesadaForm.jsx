@@ -212,12 +212,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
     nro_remito: '',
     sentido: 'INGRESO',
     es_contenedor: false,
-    nro_contenedor: '',
-    peso_vgm: '',
-    tara_contenedor: '',
-    cantidad_bultos: '',
-    nro_proforma: '',
-    nro_permiso_embarque: '',
   });
   const [archivoPDF, setArchivoPDF] = useState(null);
   const fileInputRef = useRef(null);
@@ -244,12 +238,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
               transporte_id: data.data.transporte_nombre || data.data.transporte_id || '',
               sentido: data.data.sentido || 'INGRESO',
               es_contenedor: data.data.es_contenedor || false,
-              nro_contenedor: data.data.nro_contenedor || '',
-              peso_vgm: data.data.peso_vgm ?? '',
-              tara_contenedor: data.data.tara_contenedor ?? '',
-              cantidad_bultos: data.data.cantidad_bultos ?? '',
-              nro_proforma: data.data.nro_proforma || '',
-              nro_permiso_embarque: data.data.nro_permiso_embarque || '',
             }));
           } else {
             setPesadaActiva(null);
@@ -386,11 +374,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
       return;
     }
 
-    if (formData.es_contenedor && !formData.nro_contenedor.trim()) {
-      setErrorModal('Nro de contenedor es obligatorio cuando es contenedor');
-      return;
-    }
-
     // Usamos las refs para verificar manual vs real-time
     const pesoCapturado = currentWeightRef.current.toString();
     const pesoIngresado = formData.peso.toString();
@@ -470,14 +453,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
       if (formData.nro_remito) d.append('nro_remito', formData.nro_remito);
       if (archivoPDF) d.append('archivo', archivoPDF);
       d.append('es_contenedor', formData.es_contenedor);
-      if (formData.es_contenedor) {
-        if (formData.nro_contenedor) d.append('nro_contenedor', formData.nro_contenedor);
-        if (formData.peso_vgm) d.append('peso_vgm', formData.peso_vgm);
-        if (formData.tara_contenedor) d.append('tara_contenedor', formData.tara_contenedor);
-        if (formData.cantidad_bultos) d.append('cantidad_bultos', formData.cantidad_bultos);
-        if (formData.nro_proforma) d.append('nro_proforma', formData.nro_proforma);
-        if (formData.nro_permiso_embarque) d.append('nro_permiso_embarque', formData.nro_permiso_embarque);
-      }
 
       // Pasar las fotos capturadas (array de objetos o strings)
       if (fotosCapturadas && fotosCapturadas.length > 0) {
@@ -509,12 +484,6 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
         nro_remito: '',
         sentido: 'INGRESO',
         es_contenedor: false,
-        nro_contenedor: '',
-        peso_vgm: '',
-        tara_contenedor: '',
-        cantidad_bultos: '',
-        nro_proforma: '',
-        nro_permiso_embarque: '',
       });
       setArchivoPDF(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -632,75 +601,10 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
                 Es Contenedor
               </span>
             </label>
-
             {formData.es_contenedor && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-5">
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Nro Contenedor <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    name="nro_contenedor"
-                    value={formData.nro_contenedor}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="MSCU1234567"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Peso VGM (kg)</label>
-                  <input
-                    type="number"
-                    name="peso_vgm"
-                    value={formData.peso_vgm}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Tara Contenedor (kg)</label>
-                  <input
-                    type="number"
-                    name="tara_contenedor"
-                    value={formData.tara_contenedor}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Cantidad Bultos</label>
-                  <input
-                    type="number"
-                    name="cantidad_bultos"
-                    value={formData.cantidad_bultos}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nro Proforma</label>
-                  <input
-                    name="nro_proforma"
-                    value={formData.nro_proforma}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="PLT-001"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nro Permiso Embarque</label>
-                  <input
-                    name="nro_permiso_embarque"
-                    value={formData.nro_permiso_embarque}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'}`}
-                    placeholder="PE-0000001"
-                  />
-                </div>
-              </div>
+              <p className={`mt-3 text-xs font-medium ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                Los datos del contenedor se completan desde la lista de pesadas.
+              </p>
             )}
           </div>
 
