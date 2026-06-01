@@ -12,7 +12,11 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data'][0] if d.get\\('data'\\) else d, indent=2\\)\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['data'][:3] if d.get\\('data'\\) else d, indent=2\\)\\)\")",
       "Bash(python -c ' *)",
-      "Bash(grep -E \"\\\\.jsx?$\")"
+      "Bash(grep -E \"\\\\.jsx?$\")",
+      "Bash(dir \"C:\\\\Users\\\\CicloIT\\\\Desktop\\\\Balanza\\\\Frontend\\\\src\\\\components\")",
+      "Bash(findstr /i pesada)",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\CicloIT\\\\Desktop\\\\Balanza\\\\Frontend\\\\Documentacion\\\\estructura.sql\" -Pattern \"vehiculo|patente|UNIQUE\" -Encoding Unicode)",
+      "Bash(Select-Object -First 30)"
     ]
   }
 }

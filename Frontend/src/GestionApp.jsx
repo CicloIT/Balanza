@@ -26,6 +26,7 @@ import Guard from './components/Guard';
 import ProtectedRoute from './components/ProtectedRoute';
 import DetallePesadaModal from './components/DetallePesadaModal';
 import ContenedorModal from './components/ContenedorModal';
+import EditPesadaModal from './components/EditPesadaModal';
 import Configuracion from './components/Configuracion';
 
 export default function GestionApp() {
@@ -89,6 +90,7 @@ export default function GestionApp() {
   const [pesadaDetalle, setPesadaDetalle] = useState(null);
   const [pesadasReporte, setPesadasReporte] = useState(null);
   const [contenedorModal, setContenedorModal] = useState(null);
+  const [editarPesadaModal, setEditarPesadaModal] = useState(null);
 
   useEffect(() => { setSearchTerm(''); }, [activeTab]);
 
@@ -462,6 +464,7 @@ export default function GestionApp() {
                     onGenerarReporte={setPesadasReporte}
                     onVerDetalles={setPesadaDetalle}
                     onContenedor={setContenedorModal}
+                    onEditarPesada={setEditarPesadaModal}
                     soloLectura={activeTab === 'pesadas'}
                     hasMore={currentGestion.hasMore}
                     loadMore={currentGestion.loadMore}
@@ -523,6 +526,20 @@ export default function GestionApp() {
           item={contenedorModal}
           onClose={() => setContenedorModal(null)}
           onSaved={() => setRefreshTrigger(Date.now())}
+        />
+      )}
+
+      {/* Modal editar pesada */}
+      {editarPesadaModal && (
+        <EditPesadaModal
+          abierto={!!editarPesadaModal}
+          item={editarPesadaModal}
+          onClose={() => setEditarPesadaModal(null)}
+          onSaved={() => setRefreshTrigger(Date.now())}
+          choferes={choferes.items}
+          productos={productos.items}
+          productores={productores.items}
+          transportes={transportes.items}
         />
       )}
 

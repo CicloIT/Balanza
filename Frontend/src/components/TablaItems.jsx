@@ -108,9 +108,21 @@ function RenderCelda({ item, keyName, isDark }) {
 }
 
 /* ─── Action buttons (reused in table row & card) ───────────────────────── */
-function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles, onContenedor }) {
+function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles, onContenedor, onEditarPesada }) {
   return (
     <>
+      <Guard permissions="pesaje:update">
+        <button
+          onClick={e => { e.stopPropagation(); onEditarPesada?.(item); }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${isDark
+            ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/40'
+            : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+            }`}
+          title="Editar operación"
+        >
+          <Edit2 size={14} /> Editar
+        </button>
+      </Guard>
       <button
         onClick={() => onVerDetalles?.(item)}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-105 ${isDark
@@ -169,7 +181,7 @@ function AccionesPesada({ item, isDark, onSubirPDF, onVerDetalles, onContenedor 
 /* ─── Desktop table row ─────────────────────────────────────────────────── */
 const FilaTabla = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor, onEditarPesada,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -226,7 +238,7 @@ const FilaTabla = React.memo(({
               </>
             )}
             {tipo === 'pesadas' && (
-              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} />
+              <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} onEditarPesada={onEditarPesada} />
             )}
           </div>
         </td>
@@ -238,7 +250,7 @@ const FilaTabla = React.memo(({
 /* ─── Mobile card ───────────────────────────────────────────────────────── */
 const CardItem = React.memo(({
   item, idx, isDark, tipo, selected, columnasKeys, columnasLabels,
-  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
+  onToggleSeleccion, onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor, onEditarPesada,
   soloLectura, mostrarColumnaAcciones,
 }) => {
   const resourcePrefix = tipo === 'pesadas' ? 'pesaje' : tipo;
@@ -330,7 +342,7 @@ const CardItem = React.memo(({
             </>
           )}
           {tipo === 'pesadas' && (
-            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} />
+            <AccionesPesada item={item} isDark={isDark} onSubirPDF={onSubirPDF} onVerDetalles={onVerDetalles} onContenedor={onContenedor} onEditarPesada={onEditarPesada} />
           )}
         </div>
       )}
@@ -341,7 +353,7 @@ const CardItem = React.memo(({
 /* ─── Main component ────────────────────────────────────────────────────── */
 const TablaItems = React.memo(({
   items, tipo, columnasKeys, columnasLabels,
-  onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles, onContenedor,
+  onEditar, onEliminar, onToggleEstado, onSubirPDF, onVerDetalles, onContenedor, onEditarPesada,
   onGenerarReporte, onEliminarMultiples, soloLectura = false,
   hasMore, loadMore, loadingMore
 }) => {
@@ -407,7 +419,7 @@ const TablaItems = React.memo(({
   const sharedRowProps = {
     isDark, tipo, columnasKeys, columnasLabels,
     onToggleSeleccion: handleToggleSeleccion,
-    onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor,
+    onToggleEstado, onEditar, onEliminar, onSubirPDF, onVerDetalles, onContenedor, onEditarPesada,
     soloLectura, mostrarColumnaAcciones,
   };
 

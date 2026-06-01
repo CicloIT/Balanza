@@ -369,6 +369,10 @@ export const getPesadasAgrupadas = async (req, res) => {
              MIN(p.fecha_hora) as fecha_entrada,
              MAX(p.fecha_hora) as fecha_salida,
              op.abierta,
+             MAX(p.chofer_id)       as chofer_id,
+             MAX(p.producto_id)     as producto_id,
+             MAX(p.productor_id)    as productor_id,
+             MAX(p.transporte_id)   as transporte_id,
              MAX(c.apellido_nombre) as chofer,
              MAX(prod.nombre)       as producto,
              MAX(ptr.nombre)        as productor,
@@ -425,15 +429,6 @@ export const updateContenedorByOperacion = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Nro de contenedor es obligatorio' });
     }
 
-    // Traer bruto y tara actuales para recalcular
-    const pesadasResult = await client.query(
-      `SELECT tipo, peso FROM pesada WHERE operacion_id = $1`,
-      [operacionId]
-    );
-
-    const brutoRec = pesadasResult.rows.find(r => r.tipo === 'BRUTO');
-    const taraRec  = pesadasResult.rows.find(r => r.tipo === 'TARA');
-
     // Actualizar campos contenedor en todas las pesadas de la operación
     await client.query(
       `UPDATE pesada SET
@@ -456,28 +451,138 @@ export const updateContenedorByOperacion = async (req, res) => {
       ]
     );
 
-    // Recalcular bruto/tara solo si operación cerrada y tara_contenedor válida
-    const taraCont = parseFloat(tara_contenedor) || 0;
-    if (brutoRec && taraRec && taraCont > 0) {
-      const netoOriginal = parseFloat(brutoRec.peso) - parseFloat(taraRec.peso);
-      const newBruto = netoOriginal + taraCont;
-      const newTara  = taraCont;
-
-      await client.query(
-        `UPDATE pesada SET peso = $1 WHERE operacion_id = $2 AND tipo = 'BRUTO'`,
-        [newBruto, operacionId]
-      );
-      await client.query(
-        `UPDATE pesada SET peso = $1 WHERE operacion_id = $2 AND tipo = 'TARA'`,
-        [newTara, operacionId]
-      );
-    }
-
     await client.query('COMMIT');
     res.json({ success: true, message: 'Datos de contenedor actualizados exitosamente' });
   } catch (error) {
     await client.query('ROLLBACK');
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+export const updateOperacionDatos = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { operacionId } = req.params;
+    const {
+      vehiculo_patente, sentido,
+      chofer_id, producto_id, productor_id, transporte_id,
+      nro_remito, balancero,
+      es_contenedor, nro_contenedor, peso_vgm, tara_contenedor,
+      cantidad_bultos, nro_proforma, nro_permiso_embarque,
+    } = req.body;
+
+    // Validar que la patente existe en el sistema
+    if (vehiculo_patente) {
+      const vehResult = await client.query(
+        `SELECT patente FROM vehiculo WHERE UPPER(patente) = UPPER($1)`,
+        [vehiculo_patente.trim()]
+      );
+      if (vehResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          error: `La patente "${vehiculo_patente.toUpperCase()}" no está registrada en el sistema. Verificá que esté bien escrita o registrá el vehículo primero.`,
+          campo: 'vehiculo_patente',
+        });
+      }
+    }
+
+    // Validar nro_remito único entre operaciones
+    if (nro_remito) {
+      const remitoResult = await client.query(
+        `SELECT operacion_id FROM pesada WHERE nro_remito = $1 AND operacion_id != $2 LIMIT 1`,
+        [nro_remito, operacionId]
+      );
+      if (remitoResult.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          error: `El número de remito "${nro_remito}" ya está usado en otra operación. Cada remito debe ser único.`,
+          campo: 'nro_remito',
+        });
+      }
+    }
+
+    // Validar nro_contenedor único entre operaciones
+    if (nro_contenedor) {
+      const contResult = await client.query(
+        `SELECT operacion_id FROM pesada WHERE nro_contenedor = $1 AND operacion_id != $2 LIMIT 1`,
+        [nro_contenedor, operacionId]
+      );
+      if (contResult.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          error: `El contenedor "${nro_contenedor}" ya está registrado en otra operación. Verificá si ya fue ingresado anteriormente.`,
+          campo: 'nro_contenedor',
+        });
+      }
+    }
+
+    await client.query(
+      `UPDATE operacion_pesaje SET
+        vehiculo_patente = COALESCE($1, vehiculo_patente),
+        sentido          = COALESCE($2, sentido)
+       WHERE id = $3`,
+      [vehiculo_patente || null, sentido || null, operacionId]
+    );
+
+    await client.query(
+      `UPDATE pesada SET
+        chofer_id            = COALESCE($1, chofer_id),
+        producto_id          = COALESCE($2, producto_id),
+        productor_id         = COALESCE($3, productor_id),
+        transporte_id        = COALESCE($4, transporte_id),
+        nro_remito           = $5,
+        balancero            = $6,
+        es_contenedor        = $7,
+        nro_contenedor       = $8,
+        peso_vgm             = $9,
+        tara_contenedor      = $10,
+        cantidad_bultos      = $11,
+        nro_proforma         = $12,
+        nro_permiso_embarque = $13
+       WHERE operacion_id = $14`,
+      [
+        chofer_id     || null,
+        producto_id   || null,
+        productor_id  || null,
+        transporte_id || null,
+        nro_remito    || null,
+        balancero     || null,
+        es_contenedor ?? false,
+        nro_contenedor       || null,
+        peso_vgm             || null,
+        tara_contenedor      || null,
+        cantidad_bultos      || null,
+        nro_proforma         || null,
+        nro_permiso_embarque || null,
+        operacionId,
+      ]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Operación actualizada exitosamente' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    let mensaje = error.message;
+    let campo = null;
+    if (error.code === '23503') {
+      if (error.constraint?.includes('vehiculo_patente')) {
+        mensaje = `La patente ingresada no está registrada en el sistema. Verificá que esté bien escrita o registrá el vehículo primero.`;
+        campo = 'vehiculo_patente';
+      } else if (error.constraint?.includes('nro_remito')) {
+        mensaje = `El número de remito ya está usado en otra operación.`;
+        campo = 'nro_remito';
+      } else if (error.constraint?.includes('nro_contenedor')) {
+        mensaje = `El número de contenedor ya está registrado en otra operación.`;
+        campo = 'nro_contenedor';
+      }
+    }
+    res.status(400).json({ success: false, error: mensaje, campo });
   } finally {
     client.release();
   }
