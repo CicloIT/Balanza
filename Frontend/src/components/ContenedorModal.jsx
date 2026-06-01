@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Package, Scale, Save } from 'lucide-react';
+import { X, Package, Save } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
 
 const STORAGE_KEY = 'balanza_user';
@@ -45,10 +45,6 @@ export default function ContenedorModal({ abierto, item, onClose, onSaved }) {
   }, [item]);
 
   if (!abierto || !item) return null;
-
-  const taraCont      = parseFloat(formData.tara_contenedor) || 0;
-  const netoExistente = item.neto != null ? parseFloat(item.neto) : null;
-  const nuevoBruto    = netoExistente != null && taraCont > 0 ? netoExistente + taraCont : null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -119,50 +115,6 @@ export default function ContenedorModal({ abierto, item, onClose, onSaved }) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-
-          {/* Preview de cálculo */}
-          {netoExistente != null && (
-            <div className={`p-4 rounded-2xl border ${
-              isDark ? 'bg-cyan-500/10 border-cyan-500/30' : 'bg-cyan-50 border-cyan-200'
-            }`}>
-              <p className={`text-xs font-black uppercase tracking-wider mb-3 flex items-center gap-1 ${
-                isDark ? 'text-cyan-400' : 'text-cyan-600'
-              }`}>
-                <Scale size={12} /> Pesos actuales → resultantes
-              </p>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-[10px] uppercase font-bold opacity-50 mb-1">Bruto</p>
-                  <p className={`font-mono font-black text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    {item.bruto != null ? Number(item.bruto).toLocaleString('es-AR') : '—'} kg
-                  </p>
-                  {nuevoBruto != null && (
-                    <p className={`font-mono font-black text-sm mt-1 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
-                      → {nuevoBruto.toLocaleString('es-AR')} kg
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold opacity-50 mb-1">Tara</p>
-                  <p className={`font-mono font-black text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    {item.tara != null ? Number(item.tara).toLocaleString('es-AR') : '—'} kg
-                  </p>
-                  {taraCont > 0 && (
-                    <p className={`font-mono font-black text-sm mt-1 ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
-                      → {taraCont.toLocaleString('es-AR')} kg
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold opacity-50 mb-1">Neto</p>
-                  <p className={`font-mono font-black text-sm ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
-                    {netoExistente.toLocaleString('es-AR')} kg
-                  </p>
-                  <p className="text-[10px] font-bold opacity-40 mt-1">(sin cambio)</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Campos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
