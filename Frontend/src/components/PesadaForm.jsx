@@ -191,6 +191,7 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
   const [transportes, setTransportes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
+  const [dispositivoId, setDispositivoId] = useState(null);
 
   // Refs para capturar peso sin disparar re-renders del form entero constantemente
   const currentWeightRef = useRef(0);
@@ -301,6 +302,17 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
         const res = await fetch(`${API_BASE_URL}/api/camaras/config`, { headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success && data.canales) setActiveChannels(data.canales);
+      } catch (e) { /* ignore */ }
+    })();
+
+    // Obtener dispositivo_id de la balanza para esta localidad
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/config`, { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.data?.balanza?.id) {
+          setDispositivoId(data.data.balanza.id);
+        }
       } catch (e) { /* ignore */ }
     })();
   }, []);
@@ -453,6 +465,7 @@ export default function PesadaForm({ transportes: transportesProp, choferes: cho
       if (formData.nro_remito) d.append('nro_remito', formData.nro_remito);
       if (archivoPDF) d.append('archivo', archivoPDF);
       d.append('es_contenedor', formData.es_contenedor);
+      if (dispositivoId) d.append('dispositivo_id', dispositivoId);
 
       // Pasar las fotos capturadas (array de objetos o strings)
       if (fotosCapturadas && fotosCapturadas.length > 0) {

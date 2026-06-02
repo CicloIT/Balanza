@@ -497,6 +497,7 @@ export const updateContenedorByOperacion = async (req, res) => {
 export const getPesadaActivaByPatente = async (req, res) => {
   try {
     const { patente } = req.params;
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(`
       SELECT
         p.*,
@@ -511,11 +512,12 @@ export const getPesadaActivaByPatente = async (req, res) => {
       LEFT JOIN producto  prod ON p.producto_id  = prod.id
       LEFT JOIN productor ptr  ON p.productor_id = ptr.id
       LEFT JOIN transporte tr  ON p.transporte_id = tr.id
-      WHERE op.vehiculo_patente = $1 
-      AND op.abierta = true
+      WHERE op.vehiculo_patente = $1
+        AND op.abierta = true
+        AND ($2::int IS NULL OR op.localidad_id = $2)
       ORDER BY p.fecha_hora DESC
       LIMIT 1
-    `, [patente]);
+    `, [patente, localidadId]);
 
     if (result.rows.length === 0) {
       return res.json({ success: true, data: null });

@@ -25,7 +25,7 @@ export default function DispositivosConfig() {
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
         balanza: { ip: "", puerto: "" },
-        grabadora: { ip: "", usuario: "", contraseña: "" }
+        grabadora: { ip: "", usuario: "", contraseña: "", marca: "hikvision" }
     });
 
     const [msg, setMsg] = useState(null);
@@ -60,7 +60,9 @@ export default function DispositivosConfig() {
 
             const body = {
                 ...config[tipo],
-                puerto: config[tipo].puerto ? Number(config[tipo].puerto) : null
+                puerto: config[tipo].puerto ? Number(config[tipo].puerto) : null,
+                marca: config[tipo]?.marca || null,
+                localidad_id: config[tipo]?.localidad_id ?? null
             };
 
             const res = await fetch(`/api/config/${tipo}`, {
@@ -365,6 +367,19 @@ export default function DispositivosConfig() {
                                         : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100'
                                         }`}
                                 />
+                            </div>
+                            <div className="input-field">
+                                <select
+                                    value={config.grabadora.marca || "hikvision"}
+                                    onChange={(e) => handleChange("grabadora", "marca", e.target.value)}
+                                    className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 font-medium text-sm ${isDark
+                                        ? 'bg-slate-700/50 border-slate-600 text-white focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20'
+                                        : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100'
+                                        }`}
+                                >
+                                    <option value="hikvision">Hikvision</option>
+                                    <option value="dahua">Dahua</option>
+                                </select>
                             </div>
                         </div>
 

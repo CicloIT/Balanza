@@ -14,14 +14,15 @@ if (!fs.existsSync(CAPTURAS_DIR)) {
     fs.mkdirSync(CAPTURAS_DIR, { recursive: true });
 }
 
-const obtenerConfigGrabadora = async () => {
+const obtenerConfigGrabadora = async (localidadId = null) => {
     try {
-        const query = `
-        SELECT ip,usuario,contraseña AS password
-        FROM  configuracion_dispositivos
-        WHERE tipo_dispositivo = 'grabadora'       
-        `
-        const result = await pool.query(query);
+        const result = await pool.query(`
+            SELECT ip, usuario, contraseña AS password
+            FROM configuracion_dispositivos
+            WHERE tipo_dispositivo = 'grabadora' AND activo = true
+              AND ($1::int IS NULL OR localidad_id = $1)
+            LIMIT 1
+        `, [localidadId]);
         if (!result.rows || result.rows.length === 0) {
             throw new Error("No hay configuración de grabadora");
         }
@@ -32,13 +33,10 @@ const obtenerConfigGrabadora = async () => {
     }
 }
 
-const crearClienteNVR = async () => {
-    const { ip, usuario, password } = await obtenerConfigGrabadora();
+const crearClienteNVR = async (localidadId = null) => {
+    const { ip, usuario, password } = await obtenerConfigGrabadora(localidadId);
     const client = new DigestFetch(usuario, password);
-    return {
-        client,
-        ip
-    }
+    return { client, ip };
 }
 
 /*
@@ -100,7 +98,8 @@ const detectarCanalesActivos = async (client, ip) => {
 
 export const getConfig = async (req, res) => {
     try {
-        const { client, ip } = await crearClienteNVR();
+        const localidadId = req.user?.localidad_id ?? null;
+        const { client, ip } = await crearClienteNVR(localidadId);
         const canales = await detectarCanalesActivos(client, ip);
         res.json({ success: true, canales });
     } catch (e) {
@@ -111,10 +110,11 @@ export const getConfig = async (req, res) => {
 export const capturarTodo = async (req, res) => {
     const patente = (req.query.patente || "SIN_PATENTE").toUpperCase().trim();
     console.log(`📸 Iniciando captura para Patente: ${patente}...`);
+    const localidadId = req.user?.localidad_id ?? null;
 
     let client, ip;
     try {
-        ({ client, ip } = await crearClienteNVR());
+        ({ client, ip } = await crearClienteNVR(localidadId));
     } catch (error) {
         console.error("No se pudo conectar al NVR:", error.message);
         return res.json({ status: "sin_camaras", archivos: [], message: error.message });

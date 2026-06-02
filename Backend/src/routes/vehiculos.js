@@ -13,7 +13,7 @@ import { PERMISSIONS } from '../config/rolesConfig.js';
 const router = express.Router();
 
 // 1. Rutas Estáticas (Siempre arriba)
-router.get('/select-list', getVehiculosParaSelect);
+router.get('/select-list', optionalAuth, getVehiculosParaSelect);
 router.get('/', optionalAuth, requirePermission(PERMISSIONS.VEHICULOS_VIEW), getVehiculos);
 
 // 2. Rutas con parámetros dinámicos

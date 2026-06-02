@@ -10,19 +10,23 @@ let reconnectTimer = null;
 let broadcastFn = null;   // inyectado desde server.js
 let currentIp = null;
 let currentPort = null;
+let currentDeviceId = null;
 let destroying = false;   // para no reintentar si destruimos a propósito
 
 // ─── Obtener config desde la BD ──────────────────────────────────────────────
 const obtenerConfigBalanza = async () => {
+    const localidadId = process.env.LOCALIDAD_ID ? parseInt(process.env.LOCALIDAD_ID) : null;
     const result = await pool.query(`
-        SELECT ip, puerto
+        SELECT id, ip, puerto
         FROM configuracion_dispositivos
         WHERE tipo_dispositivo = 'balanza' AND activo = true
+          AND ($1::int IS NULL OR localidad_id = $1)
         LIMIT 1
-    `);
+    `, [localidadId]);
     if (!result.rows.length) throw new Error('No hay configuración de balanza en la base de datos');
-    const { ip, puerto } = result.rows[0];
+    const { id, ip, puerto } = result.rows[0];
     if (!ip) throw new Error('La configuración de balanza no tiene IP definida');
+    currentDeviceId = id;
     return { ip, puerto: puerto ? parseInt(puerto) : null };
 };
 
@@ -152,6 +156,8 @@ export const getEstadoBalanza = () => ({
     lastWeight,
     config: { ip: currentIp, port: currentPort }
 });
+
+export const getDispositivoIdBalanza = () => currentDeviceId;
 
 // ─── Inicializar el servicio ──────────────────────────────────────────────────
 export const inicializarBalanza = (broadcastCallback) => {
