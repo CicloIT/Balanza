@@ -30,12 +30,12 @@ export const requireAuth = async (req, res, next) => {
     let result;
     if (userId) {
       result = await pool.query(
-        'SELECT id, username, rol, activo FROM usuario WHERE id = $1 AND activo = true',
+        'SELECT id, username, rol, localidad_id, activo FROM usuario WHERE id = $1 AND activo = true',
         [userId]
       );
     } else {
       result = await pool.query(
-        'SELECT id, username, rol, activo FROM usuario WHERE LOWER(username) = LOWER($1) AND activo = true',
+        'SELECT id, username, rol, localidad_id, activo FROM usuario WHERE LOWER(username) = LOWER($1) AND activo = true',
         [username]
       );
     }
@@ -198,12 +198,12 @@ export const optionalAuth = async (req, res, next) => {
       let result;
       if (userId) {
         result = await pool.query(
-          'SELECT id, username, rol, activo FROM usuario WHERE id = $1 AND activo = true',
+          'SELECT id, username, rol, localidad_id, activo FROM usuario WHERE id = $1 AND activo = true',
           [userId]
         );
       } else {
         result = await pool.query(
-          'SELECT id, username, rol, activo FROM usuario WHERE LOWER(username) = LOWER($1) AND activo = true',
+          'SELECT id, username, rol, localidad_id, activo FROM usuario WHERE LOWER(username) = LOWER($1) AND activo = true',
           [username]
         );
       }

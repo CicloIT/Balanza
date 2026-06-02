@@ -100,8 +100,10 @@ export const authLogin = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Usuario y contraseña son requeridos' });
     }
     const result = await pool.query(
-      `SELECT id, username, rol FROM usuario
-       WHERE LOWER(username) = LOWER($1) AND password_hash = $2 AND activo = true`,
+      `SELECT u.id, u.username, u.rol, u.localidad_id, l.nombre as localidad_nombre
+       FROM usuario u
+       LEFT JOIN localidad l ON u.localidad_id = l.id
+       WHERE LOWER(u.username) = LOWER($1) AND u.password_hash = $2 AND u.activo = true`,
       [username.trim(), password]
     );
     if (result.rows.length === 0) {

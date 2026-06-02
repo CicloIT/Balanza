@@ -8,13 +8,28 @@ export const getMetricasDashboard = async (req, res) => {
     inicioSemana.setDate(hoy.getDate() - 7); // Últimos 7 días en lugar de inicio de semana
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
+    const localidadId = req.user?.localidad_id ?? null;
+    // localidad_filter: null = sin filtro (global), número = filtrar por esa localidad
+    // Para pesada: filtro via JOIN con configuracion_dispositivos
+    // Para operacion_pesaje: filtro directo por localidad_id
+    const localidadFiltroDisp = localidadId
+      ? `AND EXISTS (SELECT 1 FROM configuracion_dispositivos cd WHERE cd.id = p.dispositivo_id AND cd.localidad_id = ${parseInt(localidadId)})`
+      : '';
+    const localidadFiltroOp = localidadId
+      ? `AND localidad_id = ${parseInt(localidadId)}`
+      : '';
+    const localidadFiltroRep = localidadId
+      ? `AND localidad_id = ${parseInt(localidadId)}`
+      : '';
+
     // 1. Total de pesadas hoy
     const pesadasHoy = await pool.query(`
       SELECT COUNT(*) as total,
              COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) as bruto_total,
              COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as tara_total
-      FROM pesada
+      FROM pesada p
       WHERE DATE(fecha_hora) = CURRENT_DATE
+      ${localidadFiltroDisp}
     `);
 
     // 2. Operaciones del día
@@ -24,6 +39,7 @@ export const getMetricasDashboard = async (req, res) => {
              SUM(CASE WHEN abierta = false THEN 1 ELSE 0 END) as cerradas
       FROM operacion_pesaje
       WHERE DATE(created_at) = CURRENT_DATE
+      ${localidadFiltroOp}
     `);
 
     // 3. Pesadas de la semana por día (Últimos 7 días reales)
@@ -33,8 +49,9 @@ export const getMetricasDashboard = async (req, res) => {
         COUNT(*) as total_pesadas,
         COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) as bruto,
         COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as tara
-      FROM pesada
+      FROM pesada p
       WHERE fecha_hora >= CURRENT_DATE - INTERVAL '7 days'
+      ${localidadFiltroDisp}
       GROUP BY DATE(fecha_hora)
       ORDER BY fecha ASC
     `);
@@ -49,6 +66,7 @@ export const getMetricasDashboard = async (req, res) => {
       FROM pesada p
       JOIN productor pr ON p.productor_id = pr.id
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
       GROUP BY pr.id, pr.codigo, pr.nombre
       ORDER BY peso_neto DESC
       LIMIT 5
@@ -64,6 +82,7 @@ export const getMetricasDashboard = async (req, res) => {
       FROM pesada p
       JOIN producto pr ON p.producto_id = pr.id
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
       GROUP BY pr.id, pr.codigo, pr.nombre
       ORDER BY peso_neto DESC
       LIMIT 5
@@ -78,6 +97,7 @@ export const getMetricasDashboard = async (req, res) => {
       FROM pesada p
       JOIN vehiculo v ON p.vehiculo_patente = v.patente
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
       GROUP BY v.tipo_vehiculo
       ORDER BY peso_neto DESC
     `, [inicioMes]);
@@ -92,6 +112,7 @@ export const getMetricasDashboard = async (req, res) => {
       FROM pesada p
       JOIN transporte t ON p.transporte_id = t.id
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
       GROUP BY t.id, t.nombre, t.cuit
       ORDER BY peso_neto DESC
       LIMIT 5
@@ -106,6 +127,7 @@ export const getMetricasDashboard = async (req, res) => {
       FROM pesada p
       JOIN chofer c ON p.chofer_id = c.id
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
       GROUP BY c.id, c.apellido_nombre
       ORDER BY operaciones DESC
       LIMIT 5
@@ -120,14 +142,15 @@ export const getMetricasDashboard = async (req, res) => {
         COALESCE(AVG(p.neto) FILTER (WHERE p.neto > 0), 0) as carga_promedio
       FROM pesada p
       WHERE p.fecha_hora >= $1
+      ${localidadFiltroDisp}
     `, [inicioMes]);
 
     // 10. Reportes generados hoy
-    // ← CORREGIDO: antes usaba t.pesada_id que ya no existe en la nueva tabla ticket
     const ticketsHoy = await pool.query(`
       SELECT COUNT(*) as total_tickets
       FROM reporte
       WHERE DATE(created_at) = CURRENT_DATE
+      ${localidadFiltroRep}
     `);
 
     // 11. Comparativo últimos 6 meses
@@ -137,8 +160,9 @@ export const getMetricasDashboard = async (req, res) => {
         EXTRACT(MONTH FROM fecha_hora) as mes,
         COUNT(DISTINCT operacion_id) as total_operaciones,
         COALESCE(SUM(neto), 0) as peso_neto
-      FROM pesada
+      FROM pesada p
       WHERE fecha_hora >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months')
+      ${localidadFiltroDisp}
       GROUP BY EXTRACT(YEAR FROM fecha_hora), EXTRACT(MONTH FROM fecha_hora)
       ORDER BY anio DESC, mes DESC
       LIMIT 6
@@ -159,8 +183,9 @@ export const getMetricasDashboard = async (req, res) => {
         EXTRACT(DOW FROM fecha_hora) as dia_semana,
         EXTRACT(HOUR FROM fecha_hora) as hora,
         COUNT(*) as total
-      FROM pesada
+      FROM pesada p
       WHERE fecha_hora >= CURRENT_DATE - INTERVAL '7 days'
+      ${localidadFiltroDisp}
       GROUP BY dia_semana, hora
       ORDER BY dia_semana, hora
     `);
@@ -172,8 +197,9 @@ export const getMetricasDashboard = async (req, res) => {
       FROM (
         SELECT
           EXTRACT(EPOCH FROM (MAX(fecha_hora) - MIN(fecha_hora))) / 60 as duracion_minutos
-        FROM pesada
+        FROM pesada p
         WHERE fecha_hora >= $1
+        ${localidadFiltroDisp}
         GROUP BY operacion_id
         HAVING COUNT(*) > 1
       ) sub
@@ -253,20 +279,25 @@ export const getMetricasDashboard = async (req, res) => {
 export const getMetricasPorFecha = async (req, res) => {
   try {
     const { fechaInicio, fechaFin } = req.query;
+    const localidadId = req.user?.localidad_id ?? null;
 
-    let whereClause = '';
-    let params = [];
+    const conditions = [];
+    const params = [];
 
     if (fechaInicio && fechaFin) {
-      whereClause = 'WHERE p.fecha_hora BETWEEN $1 AND $2';
-      params = [fechaInicio, fechaFin];
+      params.push(fechaInicio); conditions.push(`p.fecha_hora >= $${params.length}`);
+      params.push(fechaFin);    conditions.push(`p.fecha_hora <= $${params.length}`);
     } else if (fechaInicio) {
-      whereClause = 'WHERE p.fecha_hora >= $1';
-      params = [fechaInicio];
+      params.push(fechaInicio); conditions.push(`p.fecha_hora >= $${params.length}`);
     } else if (fechaFin) {
-      whereClause = 'WHERE p.fecha_hora <= $1';
-      params = [fechaFin];
+      params.push(fechaFin);    conditions.push(`p.fecha_hora <= $${params.length}`);
     }
+
+    if (localidadId) {
+      conditions.push(`EXISTS (SELECT 1 FROM configuracion_dispositivos cd WHERE cd.id = p.dispositivo_id AND cd.localidad_id = ${parseInt(localidadId)})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const result = await pool.query(`
       SELECT
@@ -300,6 +331,10 @@ export const getMetricasPorFecha = async (req, res) => {
 
 export const getComparativoMensual = async (req, res) => {
   try {
+    const localidadId = req.user?.localidad_id ?? null;
+    const localidadFiltro = localidadId
+      ? `AND EXISTS (SELECT 1 FROM configuracion_dispositivos cd WHERE cd.id = p.dispositivo_id AND cd.localidad_id = ${parseInt(localidadId)})`
+      : '';
     const result = await pool.query(`
       SELECT
         EXTRACT(YEAR FROM fecha_hora) as anio,
@@ -307,8 +342,9 @@ export const getComparativoMensual = async (req, res) => {
         COUNT(*) as total_pesadas,
         COALESCE(SUM(CASE WHEN tipo::text = 'BRUTO' THEN peso END), 0) -
         COALESCE(SUM(CASE WHEN tipo::text = 'TARA' THEN peso END), 0) as peso_neto
-      FROM pesada
+      FROM pesada p
       WHERE fecha_hora >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months')
+      ${localidadFiltro}
       GROUP BY EXTRACT(YEAR FROM fecha_hora), EXTRACT(MONTH FROM fecha_hora)
       ORDER BY anio DESC, mes DESC
       LIMIT 6

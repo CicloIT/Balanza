@@ -18,11 +18,12 @@ export const createReporte = async (req, res) => {
         const totalTara = pesadas.reduce((acc, p) => acc + (Number(p.tara) || 0), 0);
         const totalNeto = pesadas.reduce((acc, p) => acc + (Number(p.neto) || 0), 0);
 
+        const localidadId = req.user?.localidad_id ?? null;
         const result = await pool.query(
             `INSERT INTO reporte (
         cantidad_pesadas, total_bruto, total_tara, total_neto,
-        pesadas_data, observaciones
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        pesadas_data, observaciones, localidad_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
             [
                 pesadas.length,
@@ -30,7 +31,8 @@ export const createReporte = async (req, res) => {
                 totalTara,
                 totalNeto,
                 JSON.stringify(pesadas),
-                observaciones || null
+                observaciones || null,
+                localidadId
             ]
         );
 
@@ -47,14 +49,16 @@ export const createReporte = async (req, res) => {
 // ─── GET /api/reportes ───────────────────────────────────────────────────────
 export const getReportes = async (req, res) => {
     try {
+        const localidadId = req.user?.localidad_id ?? null;
         const result = await pool.query(`
       SELECT id, numero_reporte, cantidad_pesadas,
              total_bruto, total_tara, total_neto,
              observaciones, created_at
       FROM reporte
+      WHERE ($1::int IS NULL OR localidad_id = $1)
       ORDER BY created_at DESC
       LIMIT 200
-    `);
+    `, [localidadId]);
         res.json({ success: true, data: result.rows, count: result.rows.length });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

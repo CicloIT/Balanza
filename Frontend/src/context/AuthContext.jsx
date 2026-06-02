@@ -68,8 +68,11 @@ export function AuthProvider({ children }) {
     loading,
     error,
     setError,
-    // Nuevas propiedades para permisos
     rol: user?.rol,
+    localidad_id: user?.localidad_id ?? null,
+    localidad_nombre: user?.localidad_nombre ?? null,
+    isGlobal: !user?.localidad_id,
+    isLogistica: user?.rol?.toLowerCase() === 'logistica',
     permissions: userPermissions,
     hasPermission: checkPermission,
     isAdmin: user?.rol?.toLowerCase() === 'admin',

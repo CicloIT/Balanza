@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   LayoutDashboard, Scale, ClipboardList, BarChart3,
   User, Truck, Package, Building2, MapPin, Map, Users,
-  Sun, Moon, LogOut, Shield, UserCog, Wrench, Crown,
+  Sun, Moon, LogOut, Shield, UserCog, Wrench, Crown, TrendingUp,
   Menu, X, ChevronRight, ChevronDown,
 } from 'lucide-react';
 import { useThemeContext } from '../context/ThemeContext';
@@ -26,16 +26,19 @@ const TAB_ICONS = {
 };
 
 const ROLE_ICONS = {
-  admin:       <Crown   size={13} strokeWidth={2.5} />,
-  gerente:     <UserCog size={13} strokeWidth={2.5} />,
-  restriccion: <Shield  size={13} strokeWidth={2.5} />,
-  balancero:   <Scale   size={13} strokeWidth={2.5} />,
-  subalancero: <Wrench  size={13} strokeWidth={2.5} />,
+  admin:       <Crown       size={13} strokeWidth={2.5} />,
+  logistica:   <TrendingUp  size={13} strokeWidth={2.5} />,
+  gerente:     <UserCog     size={13} strokeWidth={2.5} />,
+  balancero:   <Scale       size={13} strokeWidth={2.5} />,
+  subalancero: <Wrench      size={13} strokeWidth={2.5} />,
 };
 
 const ROLE_COLORS = {
-  admin: 'text-amber-400', gerente: 'text-blue-400',
-  restriccion: 'text-red-400', balancero: 'text-cyan-400', subalancero: 'text-purple-400',
+  admin:       'text-amber-400',
+  logistica:   'text-emerald-400',
+  gerente:     'text-blue-400',
+  balancero:   'text-cyan-400',
+  subalancero: 'text-purple-400',
 };
 
 /* ─── Section definition ─────────────────────────────────────────────────── */
@@ -76,7 +79,7 @@ function cleanLabel(label) {
 /* ─── Component ─────────────────────────────────────────────────────────── */
 export default function Header({ activeTab, onTabChange, tabs }) {
   const { isDark, toggleTheme } = useThemeContext();
-  const { user, logout } = useAuth();
+  const { user, logout, localidad_nombre, isGlobal } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const drawerRef = useRef(null);
 
@@ -202,7 +205,9 @@ export default function Header({ activeTab, onTabChange, tabs }) {
                 }`}>
                   <span className={`${rolColor} flex-shrink-0`}>{rolIcon}</span>
                   <div className="leading-none">
-                    <p className={`text-[8px] font-black uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{user.rol}</p>
+                    <p className={`text-[8px] font-black uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      {user.rol}{isGlobal ? ' · Global' : localidad_nombre ? ` · ${localidad_nombre}` : ''}
+                    </p>
                     <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{user.username}</p>
                   </div>
                 </div>
@@ -288,7 +293,9 @@ export default function Header({ activeTab, onTabChange, tabs }) {
                   <p className={`text-xs mt-0.5 flex items-center gap-1 ${rolColor}`}>
                     {rolIcon}
                     <span className="font-bold">{user.username}</span>
-                    <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>· {user.rol}</span>
+                    <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>
+                      · {user.rol}{isGlobal ? ' · Global' : localidad_nombre ? ` · ${localidad_nombre}` : ''}
+                    </span>
                   </p>
                 )}
               </div>

@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 
 export const getTickets = async (req, res) => {
   try {
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(`
       SELECT t.id, t.numero_ticket, t.estado, t.observaciones, t.nro_remito, t.created_at,
              p.peso, p.tipo as tipo_pesada, p.neto, p.fecha_hora as fecha_pesada,
@@ -16,9 +17,10 @@ export const getTickets = async (req, res) => {
       LEFT JOIN productor pr ON p.productor_id = pr.id
       LEFT JOIN transporte tr ON p.transporte_id = tr.id
       LEFT JOIN vehiculo v ON p.vehiculo_patente = v.patente
+      WHERE ($1::int IS NULL OR t.localidad_id = $1)
       ORDER BY t.numero_ticket DESC
       LIMIT 100
-    `);
+    `, [localidadId]);
     res.json({
       success: true,
       data: result.rows,
@@ -63,6 +65,7 @@ export const getTicketById = async (req, res) => {
 export const getTicketsByEstado = async (req, res) => {
   try {
     const { estado } = req.params;
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(`
       SELECT t.id, t.numero_ticket, t.estado, t.observaciones, t.nro_remito, t.created_at,
              p.peso, p.tipo as tipo_pesada, p.neto, p.fecha_hora as fecha_pesada,
@@ -77,9 +80,9 @@ export const getTicketsByEstado = async (req, res) => {
       LEFT JOIN productor pr ON p.productor_id = pr.id
       LEFT JOIN transporte tr ON p.transporte_id = tr.id
       LEFT JOIN vehiculo v ON p.vehiculo_patente = v.patente
-      WHERE t.estado = $1
+      WHERE t.estado = $1 AND ($2::int IS NULL OR t.localidad_id = $2)
       ORDER BY t.numero_ticket DESC
-    `, [estado]);
+    `, [estado, localidadId]);
     res.json({
       success: true,
       data: result.rows,
@@ -102,12 +105,13 @@ export const createTicket = async (req, res) => {
       return res.status(400).json({ success: false, error: 'pesada_id es requerido' });
     }
 
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(
       `INSERT INTO ticket (
-        pesada_id, nro_remito, observaciones, estado
-      ) VALUES ($1, $2, $3, 'CERRADO')
+        pesada_id, nro_remito, observaciones, estado, localidad_id
+      ) VALUES ($1, $2, $3, 'CERRADO', $4)
       RETURNING *`,
-      [pesada_id, nro_remito || null, observaciones || null]
+      [pesada_id, nro_remito || null, observaciones || null, localidadId]
     );
 
     res.status(201).json({
@@ -182,6 +186,7 @@ export const getTicketsByDateRange = async (req, res) => {
       return res.status(400).json({ success: false, error: 'startDate y endDate son requeridos' });
     }
 
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(`
       SELECT t.*, p.fecha_hora, v.patente
       FROM ticket t
@@ -189,8 +194,9 @@ export const getTicketsByDateRange = async (req, res) => {
       JOIN vehiculo v ON p.vehiculo_patente = v.patente
       WHERE p.fecha_hora >= $1::DATE
         AND p.fecha_hora < $2::DATE + INTERVAL '1 day'
+        AND ($3::int IS NULL OR t.localidad_id = $3)
       ORDER BY p.fecha_hora DESC
-    `, [startDate, endDate]);
+    `, [startDate, endDate, localidadId]);
 
     res.json({
       success: true,

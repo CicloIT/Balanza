@@ -3,8 +3,9 @@ import { hasPermission, PERMISSIONS } from '../config/rolesConfig.js';
 
 export const getPesadas = async (req, res) => {
   try {
+    const localidadId = req.user?.localidad_id ?? null;
     const result = await pool.query(`
-      SELECT 
+      SELECT
         p.*,
         op.vehiculo_patente,
         op.abierta as operacion_abierta,
@@ -14,13 +15,15 @@ export const getPesadas = async (req, res) => {
         tr.nombre          AS transporte
       FROM pesada p
       JOIN operacion_pesaje op ON p.operacion_id = op.id
+      JOIN configuracion_dispositivos cd ON p.dispositivo_id = cd.id
       LEFT JOIN chofer    c   ON p.chofer_id    = c.id
       LEFT JOIN producto  prod ON p.producto_id  = prod.id
       LEFT JOIN productor ptr  ON p.productor_id = ptr.id
       LEFT JOIN transporte tr  ON p.transporte_id = tr.id
+      WHERE ($1::int IS NULL OR cd.localidad_id = $1)
       ORDER BY p.fecha_hora DESC
       LIMIT 200
-    `);
+    `, [localidadId]);
     res.json({ success: true, data: result.rows, count: result.rows.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -60,7 +63,7 @@ export const createPesada = async (req, res) => {
       vehiculo_patente, sentido, peso, chofer_id, productor_id,
       transporte_id, producto_id, balancero, nro_remito, es_manual, fotos,
       es_contenedor, nro_contenedor, peso_vgm, tara_contenedor,
-      cantidad_bultos, nro_proforma, nro_permiso_embarque
+      cantidad_bultos, nro_proforma, nro_permiso_embarque, dispositivo_id
     } = req.body;
 
     // Validaciones
@@ -106,9 +109,10 @@ export const createPesada = async (req, res) => {
     if (operacionResult.rows.length === 0) {
       // Nueva operación: tipo determinado por sentido
       tipo = sentido === 'INGRESO' ? 'BRUTO' : 'TARA';
+      const localidadId = req.user?.localidad_id ?? null;
       const newOp = await client.query(
-        'INSERT INTO operacion_pesaje (vehiculo_patente, sentido) VALUES ($1, $2) RETURNING id',
-        [vehiculo_patente, sentido]
+        'INSERT INTO operacion_pesaje (vehiculo_patente, sentido, localidad_id) VALUES ($1, $2, $3) RETURNING id',
+        [vehiculo_patente, sentido, localidadId]
       );
       operacion_id = newOp.rows[0].id;
     } else {
@@ -135,8 +139,8 @@ export const createPesada = async (req, res) => {
         operacion_id, tipo, peso, chofer_id, productor_id,
         transporte_id, producto_id, vehiculo_patente, balancero, nro_remito, ruta, fotos,
         es_contenedor, nro_contenedor, peso_vgm, tara_contenedor,
-        cantidad_bultos, nro_proforma, nro_permiso_embarque
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        cantidad_bultos, nro_proforma, nro_permiso_embarque, dispositivo_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING *`,
       [
         operacion_id, tipo, peso,
@@ -152,7 +156,8 @@ export const createPesada = async (req, res) => {
         esContenedor ? (tara_contenedor || null) : null,
         esContenedor ? (cantidad_bultos || null) : null,
         esContenedor ? (nro_proforma || null) : null,
-        esContenedor ? (nro_permiso_embarque || null) : null
+        esContenedor ? (nro_permiso_embarque || null) : null,
+        dispositivo_id || null
       ]
     );
 
@@ -317,9 +322,14 @@ export const getPesadasAgrupadas = async (req, res) => {
     const fechaFilter = req.query.fecha;
     const mesParam = parseInt(req.query.mes, 10);
     const anioParam = parseInt(req.query.anio, 10);
+    const localidadId = req.user?.localidad_id ?? null;
 
     const conditions = [];
     const filterParams = [];
+
+    // Localidad filter
+    filterParams.push(localidadId);
+    conditions.push(`($${filterParams.length}::int IS NULL OR cd.localidad_id = $${filterParams.length})`);
 
     if (sentidoFilter && ['INGRESO', 'SALIDA'].includes(sentidoFilter)) {
       filterParams.push(sentidoFilter);
@@ -349,7 +359,7 @@ export const getPesadasAgrupadas = async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM operacion_pesaje op ${whereClause}`,
+      `SELECT COUNT(*) FROM operacion_pesaje op LEFT JOIN pesada p ON op.id = p.operacion_id LEFT JOIN configuracion_dispositivos cd ON p.dispositivo_id = cd.id ${whereClause}`,
       filterParams
     );
     const total = parseInt(countResult.rows[0].count, 10);
@@ -386,6 +396,7 @@ export const getPesadasAgrupadas = async (req, res) => {
              MAX(p.nro_permiso_embarque)        as nro_permiso_embarque
       FROM operacion_pesaje op
       LEFT JOIN pesada    p    ON op.id = p.operacion_id
+      LEFT JOIN configuracion_dispositivos cd ON p.dispositivo_id = cd.id
       LEFT JOIN chofer    c    ON p.chofer_id    = c.id
       LEFT JOIN producto  prod ON p.producto_id  = prod.id
       LEFT JOIN productor ptr  ON p.productor_id = ptr.id

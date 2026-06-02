@@ -3,11 +3,13 @@ import { reconectarBalanza } from "../services/balanzaService.js";
 
 export const getConfiguracion = async (req, res) => {
     try {
+        const localidadId = req.user?.localidad_id ?? null;
         const result = await pool.query(`
-            SELECT tipo_dispositivo, ip, puerto, usuario, contraseña, activo
+            SELECT id, tipo_dispositivo, ip, puerto, usuario, contraseña, activo, localidad_id
             FROM configuracion_dispositivos
             WHERE activo = true
-        `);
+              AND ($1::int IS NULL OR localidad_id = $1)
+        `, [localidadId]);
 
         const config = {};
 
@@ -33,9 +35,10 @@ export const updateConfiguracion = async (req, res) => {
     const { ip, puerto, usuario, contraseña, activo } = req.body;
 
     try {
+        const localidadId = req.user?.localidad_id ?? null;
         const result = await pool.query(`
             UPDATE configuracion_dispositivos
-            SET 
+            SET
                 ip = COALESCE($1, ip),
                 puerto = COALESCE($2, puerto),
                 usuario = COALESCE($3, usuario),
@@ -43,8 +46,9 @@ export const updateConfiguracion = async (req, res) => {
                 activo = COALESCE($5, activo),
                 fecha_actualizacion = NOW()
             WHERE tipo_dispositivo = $6
+              AND ($7::int IS NULL OR localidad_id = $7)
             RETURNING *
-        `, [ip, puerto, usuario, contraseña, activo, tipo.toLowerCase()]);
+        `, [ip, puerto, usuario, contraseña, activo, tipo.toLowerCase(), localidadId]);
 
         if (!result.rows.length) {
             return res.status(404).json({

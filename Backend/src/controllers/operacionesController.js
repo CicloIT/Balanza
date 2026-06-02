@@ -2,7 +2,11 @@ import pool from '../config/database.js';
 
 export const getOperaciones = async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM operacion_pesaje ORDER BY created_at DESC');
+        const localidadId = req.user?.localidad_id ?? null;
+        const result = await pool.query(
+            'SELECT * FROM operacion_pesaje WHERE ($1::int IS NULL OR localidad_id = $1) ORDER BY created_at DESC',
+            [localidadId]
+        );
         res.json({ success: true, data: result.rows });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
