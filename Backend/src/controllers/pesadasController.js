@@ -374,6 +374,7 @@ export const getPesadasAgrupadas = async (req, res) => {
              MAX(p.productor_id)    as productor_id,
              MAX(p.transporte_id)   as transporte_id,
              MAX(c.apellido_nombre) as chofer,
+             MAX(c.cuit)            as chofer_cuit,
              MAX(prod.nombre)       as producto,
              MAX(ptr.nombre)        as productor,
              MAX(tr.nombre)         as transporte,
@@ -387,13 +388,15 @@ export const getPesadasAgrupadas = async (req, res) => {
              MAX(p.tara_contenedor)             as tara_contenedor,
              MAX(p.cantidad_bultos)             as cantidad_bultos,
              MAX(p.nro_proforma)                as nro_proforma,
-             MAX(p.nro_permiso_embarque)        as nro_permiso_embarque
+             MAX(p.nro_permiso_embarque)        as nro_permiso_embarque,
+             MAX(v.patente_acoplado)            as patente_acoplado
       FROM operacion_pesaje op
       LEFT JOIN pesada    p    ON op.id = p.operacion_id
       LEFT JOIN chofer    c    ON p.chofer_id    = c.id
       LEFT JOIN producto  prod ON p.producto_id  = prod.id
       LEFT JOIN productor ptr  ON p.productor_id = ptr.id
       LEFT JOIN transporte tr  ON p.transporte_id = tr.id
+      LEFT JOIN vehiculo  v    ON op.vehiculo_patente = v.patente
       ${whereClause}
       GROUP BY op.id, op.vehiculo_patente, op.abierta, op.sentido
       ORDER BY op.id DESC

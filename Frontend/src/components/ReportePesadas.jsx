@@ -111,12 +111,13 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
       <tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
         <td style="text-align:center;color:#94a3b8">${i + 1}</td>
         <td><span style="padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;background:${p.sentido === 'SALIDA' ? '#fed7aa' : '#dbeafe'};color:${p.sentido === 'SALIDA' ? '#9a3412' : '#1e40af'}">${p.sentido === 'SALIDA' ? '↑ SALIDA' : '↓ INGRESO'}</span></td>
-        <td style="font-family:monospace;font-weight:700">${p.vehiculo_patente || '—'}</td>
+        <td style="font-family:monospace;font-weight:700">${p.vehiculo_patente || '—'}${p.patente_acoplado ? `<br/><span style="font-size:7px;color:#64748b">Acop: ${p.patente_acoplado}</span>` : ''}</td>
         <td>${formatF(p.fecha_entrada)}</td>
         <td>${formatF(p.fecha_salida)}</td>
         <td>${p.productor || '—'}</td>
         <td>${p.producto || '—'}</td>
         <td>${p.nro_remito || '—'}</td>
+        <td>${p.chofer || '—'}${p.chofer_cuit ? `<br/><span style="font-size:7px;color:#64748b">${p.chofer_cuit}</span>` : ''}</td>
         <td style="font-weight:700;color:#15803d">${formatP(p.bruto)}</td>
         <td style="color:#475569">${formatP(p.tara)}</td>
         <td style="font-weight:800;font-size:12px;color:#0e7490">${formatP(p.neto)}</td>
@@ -131,6 +132,9 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
         <div class="ctn-body">
           <div class="ctn-section">PESADA</div>
           <div class="ctn-row"><div class="ctn-lbl">Dominio</div><div class="ctn-val ctn-mono">${p.vehiculo_patente || '—'}</div></div>
+          ${p.patente_acoplado ? `<div class="ctn-row"><div class="ctn-lbl">Pat. Acoplado</div><div class="ctn-val ctn-mono">${p.patente_acoplado}</div></div>` : ''}
+          <div class="ctn-row"><div class="ctn-lbl">Chofer</div><div class="ctn-val">${p.chofer || '—'}</div></div>
+          ${p.chofer_cuit ? `<div class="ctn-row"><div class="ctn-lbl">CUIT Chofer</div><div class="ctn-val ctn-mono">${p.chofer_cuit}</div></div>` : ''}
           <div class="ctn-row"><div class="ctn-lbl">Entrada Planta</div><div class="ctn-val">${formatF(p.fecha_entrada)}</div></div>
           <div class="ctn-row"><div class="ctn-lbl">Salida Planta</div><div class="ctn-val">${formatF(p.fecha_salida)}</div></div>
           <div class="ctn-row"><div class="ctn-lbl">Productor</div><div class="ctn-val">${p.productor || '—'}</div></div>
@@ -164,20 +168,29 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
           <div style="margin-top:4px">${pesadas.length} pesada${pesadas.length !== 1 ? 's' : ''}</div>
         </div>
       </div>
+      ${contenedores.length > 0 ? `
+      <div class="info-fija">
+        <span>Dir: EDU WILDE 1720-TUC</span>
+        <span>HAB PLANTA LOT: 50396</span>
+        <span>HAB BALANZA LOT: 53708</span>
+        <span>VTO BAL LOT: 30/10/2026</span>
+        <span>ADUANA DE TUC COD: 074</span>
+        <span>NRO CRTHAB BAL: 307-53384</span>
+      </div>` : ''}
 
       ${normales.length > 0 ? `
       <table>
         <thead>
           <tr>
-            <th>#</th><th>Sentido</th><th>Dominio</th><th>Entrada Planta</th>
+            <th>#</th><th>Sentido</th><th>Dominio / Acoplado</th><th>Entrada Planta</th>
             <th>Salida Planta</th><th>Productor</th><th>Producto</th><th>Remito</th>
-            <th>Bruto</th><th>Tara</th><th>Neto</th>
+            <th>Chofer / CUIT</th><th>Bruto</th><th>Tara</th><th>Neto</th>
           </tr>
         </thead>
         <tbody>${filasNormales}</tbody>
         <tfoot>
           <tr>
-            <td colspan="8" style="text-align:right;font-size:9px">Totales</td>
+            <td colspan="9" style="text-align:right;font-size:9px">Totales</td>
             <td>${totalBruto.toLocaleString('es-AR')} kg</td>
             <td>${totalTara.toLocaleString('es-AR')} kg</td>
             <td style="font-size:12px">${totalNeto.toLocaleString('es-AR')} kg</td>
@@ -363,32 +376,47 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
           .ctn-tara  .ctn-val { color:#475569; }
           .ctn-neto  .ctn-val { color:#0e7490; font-size:15px; }
 
-          /* 🔥 DUPLICADO */
-          .page {
-            height:48%;
+          .cut-line {
+            border-top: 2px dashed #999;
+            margin: 16px 0;
           }
 
-          .cut-line {
-            position: relative;
-            top: -30px;
-            border-top:2px dashed #000;
-            margin:6px 0;
+          .info-fija {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            font-size: 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 3px;
+            padding: 4px 8px;
+            margin-bottom: 6px;
+          }
+
+          .info-fija span {
+            font-weight: 700;
+            color: #1e293b;
+            padding-right: 10px;
+            margin-right: 10px;
+            border-right: 1px solid #cbd5e1;
+          }
+
+          .info-fija span:last-child {
+            border-right: none;
           }
 
           @page {
-            size: A4 portrait;
+            size: A4 landscape;
             margin: 0;
           }
 
           @media print {
-            body {
-              height:100vh;
-              display:flex;
-              flex-direction:column;
-            }
-
-            .page {
-              height:50%;
+            .cut-line {
+              border: none;
+              page-break-after: always;
+              break-after: page;
+              height: 0;
+              margin: 0;
             }
           }
         </style>
@@ -505,7 +533,7 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                             <table className="w-full text-xs">
                                 <thead>
                                     <tr className={isDark ? 'bg-slate-700' : 'bg-slate-800'}>
-                                        {['#', 'Sentido', 'Dominio', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Balancero'].map(h => (
+                                        {['#', 'Sentido', 'Dominio', 'Acoplado', 'Chofer', 'CUIT', 'Entrada', 'Salida', 'Productor', 'Transporte', 'Producto', 'Remito', 'Bruto', 'Tara', 'Neto', 'Balancero'].map(h => (
                                             <th key={h} className="px-3 py-3 text-left text-white font-bold uppercase tracking-wide text-[10px] whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
@@ -522,6 +550,9 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                                 </span>
                                             </td>
                                             <td className={`px-3 py-2.5 font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.vehiculo_patente}</td>
+                                            <td className={`px-3 py-2.5 font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.patente_acoplado || '—'}</td>
+                                            <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.chofer || '—'}</td>
+                                            <td className={`px-3 py-2.5 font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.chofer_cuit || '—'}</td>
                                             <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_entrada)}</td>
                                             <td className={`px-3 py-2.5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{formatF(p.fecha_salida)}</td>
                                             <td className={`px-3 py-2.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.productor || '—'}</td>
@@ -537,7 +568,7 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                 </tbody>
                                 <tfoot>
                                     <tr className={`border-t-2 ${isDark ? 'bg-slate-700/50 border-slate-600' : 'bg-slate-100 border-slate-300'}`}>
-                                        <td colSpan={9} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Totales</td>
+                                        <td colSpan={12} className={`px-3 py-3 text-right text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Totales</td>
                                         <td className={`px-3 py-3 font-bold ${isDark ? 'text-green-400' : 'text-green-700'}`}>{totalBruto.toLocaleString('es-AR')} kg</td>
                                         <td className={`px-3 py-3 font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{totalTara.toLocaleString('es-AR')} kg</td>
                                         <td className={`px-3 py-3 font-bold text-base ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>{totalNeto.toLocaleString('es-AR')} kg</td>
@@ -545,6 +576,22 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                                     </tr>
                                 </tfoot>
                             </table>
+                        </div>
+                    )}
+
+                    {/* Info fija para contenedores */}
+                    {pesadas.filter(p => p.es_contenedor).length > 0 && (
+                        <div className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold px-3 py-2 rounded border ${isDark ? 'bg-slate-700/50 border-slate-600 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+                            {[
+                                'DIR: EDU WILDE 1720-TUC',
+                                'HAB PLANTA LOT: 50396',
+                                'HAB BALANZA LOT: 53708',
+                                'VTO BAL LOT: 30/10/2026',
+                                'ADUANA DE TUC COD: 074',
+                                'NRO CRTHAB BAL: 307-53384',
+                            ].map((item, i, arr) => (
+                                <span key={item} className={i < arr.length - 1 ? `pr-3 border-r ${isDark ? 'border-slate-500' : 'border-slate-300'}` : ''}>{item}</span>
+                            ))}
                         </div>
                     )}
 
@@ -564,6 +611,9 @@ export function ReportePreview({ pesadas, numeroReporte, fechaEmision, guardando
                             <div className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
                                 {[
                                     ['Dominio', <span className="font-mono">{p.vehiculo_patente || '—'}</span>],
+                                    ...(p.patente_acoplado ? [['Pat. Acoplado', <span className="font-mono">{p.patente_acoplado}</span>]] : []),
+                                    ['Chofer', p.chofer || '—'],
+                                    ...(p.chofer_cuit ? [['CUIT Chofer', <span className="font-mono">{p.chofer_cuit}</span>]] : []),
                                     ['Entrada Planta', formatF(p.fecha_entrada)],
                                     ['Salida Planta', formatF(p.fecha_salida)],
                                     ['Productor', p.productor || '—'],
